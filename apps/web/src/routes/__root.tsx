@@ -3,6 +3,7 @@ import { HeadContent, Outlet, createRootRouteWithContext } from "@tanstack/react
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 
 import { ThemeProvider } from "@/components/theme-provider";
+import { UpdateChecker } from "@/components/update-checker";
 import { Toaster } from "@/components/ui/sonner";
 
 import "../index.css";
@@ -54,6 +55,7 @@ function RootComponent() {
             <Outlet />
           </div>
           <Toaster richColors />
+          <UpdateChecker />
         </ThemeProvider>
       </QueryClientProvider>
       <TanStackRouterDevtools position="bottom-left" />
