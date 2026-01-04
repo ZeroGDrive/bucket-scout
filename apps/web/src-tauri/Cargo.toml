@@ -15,11 +15,37 @@ name = "app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2.5.3" }
+tauri-build = { version = "2.5.3", features = [] }
 
 [dependencies]
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
-tauri = { version = "2.9.5" }
+tauri = { version = "2.9.5", features = [] }
 tauri-plugin-log = "2"
+tauri-plugin-store = "2"
+
+# AWS S3 SDK
+aws-sdk-s3 = "1"
+aws-config = "1"
+aws-credential-types = "1"
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Secure credential storage
+keyring = { version = "3", features = ["apple-native"] }
+
+# Utilities
+uuid = { version = "1", features = ["v4"] }
+thiserror = "1"
+base64 = "0.22"
+
+# Image processing for thumbnails
+image = "0.25"
+
+# MIME type detection
+mime_guess = "2"
+
+# File system access
+tauri-plugin-fs = "2"

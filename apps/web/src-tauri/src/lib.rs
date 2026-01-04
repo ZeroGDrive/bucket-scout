@@ -1,16 +1,46 @@
+mod commands;
+mod credentials;
+mod error;
+mod s3;
+
+use credentials::CredentialsManager;
+use s3::client::S3ClientManager;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-  tauri::Builder::default()
-    .setup(|app| {
-      if cfg!(debug_assertions) {
-        app.handle().plugin(
-          tauri_plugin_log::Builder::default()
-            .level(log::LevelFilter::Info)
-            .build(),
-        )?;
-      }
-      Ok(())
-    })
-    .run(tauri::generate_context!())
-    .expect("error while running tauri application");
+    tauri::Builder::default()
+        .plugin(tauri_plugin_store::Builder::new().build())
+        .plugin(tauri_plugin_fs::init())
+        .manage(CredentialsManager::new())
+        .manage(S3ClientManager::new())
+        .invoke_handler(tauri::generate_handler![
+            // Credentials commands
+            commands::credentials::add_account,
+            commands::credentials::list_accounts,
+            commands::credentials::get_account,
+            commands::credentials::remove_account,
+            commands::credentials::update_account,
+            commands::credentials::test_connection,
+            // Bucket commands
+            commands::buckets::list_buckets,
+            // Object commands
+            commands::objects::list_objects,
+            commands::objects::get_object_metadata,
+            commands::objects::upload_object,
+            // Preview commands
+            commands::preview::get_preview,
+            commands::preview::get_thumbnail,
+        ])
+        .setup(|app| {
+            if cfg!(debug_assertions) {
+                app.handle().plugin(
+                    tauri_plugin_log::Builder::default()
+                        .level(log::LevelFilter::Info)
+                        .build(),
+                )?;
+            }
+            Ok(())
+        })
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
 }

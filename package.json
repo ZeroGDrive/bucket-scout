@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@s3-browser/env": "workspace:*",
+    "@unpic/react": "^1.0.2",
     "dotenv": "catalog:",
     "zod": "catalog:"
   },

@@ -3,5 +3,13 @@
   "identifier": "default",
   "description": "enables the default permissions",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": [
+    "core:default",
+    "store:default",
+    "fs:default",
+    "fs:allow-write-file",
+    "fs:allow-remove",
+    "fs:scope-temp-recursive",
+    "fs:allow-temp-write-recursive"
+  ]
 }
