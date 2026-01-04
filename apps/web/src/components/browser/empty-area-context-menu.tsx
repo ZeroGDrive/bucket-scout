@@ -1,17 +1,16 @@
-import { Trash2 } from "lucide-react";
+import { FolderPlus } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 
-interface FileContextMenuProps {
+interface EmptyAreaContextMenuProps {
   x: number;
   y: number;
   onClose: () => void;
-  onDelete: () => void;
-  selectedCount: number;
+  onCreateFolder: () => void;
 }
 
-export function FileContextMenu({ x, y, onClose, onDelete, selectedCount }: FileContextMenuProps) {
+export function EmptyAreaContextMenu({ x, y, onClose, onCreateFolder }: EmptyAreaContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Adjust position to keep menu in viewport
@@ -60,12 +59,11 @@ export function FileContextMenu({ x, y, onClose, onDelete, selectedCount }: File
     };
   }, [onClose]);
 
-  const handleDelete = () => {
-    onDelete();
+  const handleCreateFolder = () => {
+    onCreateFolder();
     onClose();
   };
 
-  // Using shadcn context-menu styles
   const menu = (
     <div
       ref={menuRef}
@@ -79,17 +77,16 @@ export function FileContextMenu({ x, y, onClose, onDelete, selectedCount }: File
     >
       <button
         type="button"
-        onClick={handleDelete}
+        onClick={handleCreateFolder}
         className={cn(
-          // Using shadcn ContextMenuItem destructive variant styles
           "relative flex w-full cursor-default select-none items-center gap-2 rounded-none px-2 py-2 text-xs outline-none",
-          "text-destructive hover:bg-destructive/10 focus:bg-destructive/10 focus:text-destructive",
+          "hover:bg-accent focus:bg-accent",
           "[&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
         )}
         role="menuitem"
       >
-        <Trash2 />
-        <span>Delete{selectedCount > 1 ? ` (${selectedCount} items)` : ""}</span>
+        <FolderPlus />
+        <span>New Folder</span>
       </button>
     </div>
   );

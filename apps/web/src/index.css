@@ -28,14 +28,14 @@
 
   /* Muted elements */
   --muted: oklch(0.94 0.008 85);
-  --muted-foreground: oklch(0.50 0.015 65);
+  --muted-foreground: oklch(0.5 0.015 65);
 
   /* Accent - amber highlight */
   --accent: oklch(0.92 0.04 80);
-  --accent-foreground: oklch(0.20 0.02 65);
+  --accent-foreground: oklch(0.2 0.02 65);
 
   /* Destructive - warm red */
-  --destructive: oklch(0.58 0.20 25);
+  --destructive: oklch(0.58 0.2 25);
 
   /* Borders and inputs */
   --border: oklch(0.88 0.015 80);
@@ -47,7 +47,7 @@
   --chart-2: oklch(0.68 0.16 65);
   --chart-3: oklch(0.58 0.15 60);
   --chart-4: oklch(0.48 0.12 55);
-  --chart-5: oklch(0.38 0.10 50);
+  --chart-5: oklch(0.38 0.1 50);
 
   --radius: 0.375rem;
 
@@ -56,7 +56,7 @@
   --sidebar-foreground: oklch(0.18 0.02 65);
   --sidebar-primary: oklch(0.68 0.16 65);
   --sidebar-primary-foreground: oklch(0.12 0.02 65);
-  --sidebar-accent: oklch(0.90 0.04 78);
+  --sidebar-accent: oklch(0.9 0.04 78);
   --sidebar-accent-foreground: oklch(0.18 0.02 65);
   --sidebar-border: oklch(0.88 0.02 78);
   --sidebar-ring: oklch(0.68 0.16 65);
@@ -92,7 +92,7 @@
   --accent-foreground: oklch(0.92 0.02 80);
 
   /* Destructive */
-  --destructive: oklch(0.62 0.20 25);
+  --destructive: oklch(0.62 0.2 25);
 
   /* Borders - subtle warm tint */
   --border: oklch(0.26 0.02 72);

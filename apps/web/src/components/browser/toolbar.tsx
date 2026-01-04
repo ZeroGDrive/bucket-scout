@@ -7,6 +7,8 @@ import {
   Home,
   MoreHorizontal,
   Trash2,
+  FolderPlus,
+  Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -19,10 +21,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useBrowserStore, useCurrentPath } from "@/lib/store";
 import { useQueryClient } from "@tanstack/react-query";
-import { queryKeys, useObjects, useDeleteObjects } from "@/lib/queries";
+import { queryKeys, useObjects, useDeleteObjects, useCreateFolder } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 import { UploadButton } from "./upload-button";
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog";
+import { CreateFolderDialog } from "./create-folder-dialog";
+import { SearchInput } from "./search-input";
+import { useDownloadManager } from "@/hooks/use-download-manager";
 import { toast } from "sonner";
 import type { FileItem } from "@/lib/types";
 
@@ -43,8 +48,11 @@ export function Toolbar() {
   const prefix = currentPath.length > 0 ? currentPath.join("/") + "/" : "";
   const { data } = useObjects(selectedAccountId, selectedBucket, prefix);
   const deleteObjects = useDeleteObjects();
+  const createFolder = useCreateFolder();
+  const { queueDownloads } = useDownloadManager();
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [createFolderDialogOpen, setCreateFolderDialogOpen] = useState(false);
 
   // Get items from current view to find selected items info
   const items: FileItem[] = useMemo(() => {
@@ -75,7 +83,7 @@ export function Toolbar() {
 
   const selectedItems = useMemo(
     () => items.filter((item) => selectedFileKeys.includes(item.key)),
-    [items, selectedFileKeys]
+    [items, selectedFileKeys],
   );
 
   const hasSelection = selectedFileKeys.length > 0;
@@ -118,9 +126,7 @@ export function Toolbar() {
           setDeleteDialogOpen(false);
           clearSelection();
           if (result.errors.length > 0) {
-            toast.error(
-              `Deleted ${result.deleted} item(s), but ${result.errors.length} failed`
-            );
+            toast.error(`Deleted ${result.deleted} item(s), but ${result.errors.length} failed`);
           } else {
             toast.success(`Deleted ${result.deleted} item(s)`);
           }
@@ -128,15 +134,42 @@ export function Toolbar() {
         onError: (error) => {
           toast.error(`Failed to delete: ${error.message}`);
         },
-      }
+      },
     );
   }, [selectedAccountId, selectedBucket, selectedFileKeys, deleteObjects, clearSelection]);
+
+  const handleCreateFolder = useCallback(
+    (folderName: string) => {
+      if (!selectedAccountId || !selectedBucket) {
+        return;
+      }
+
+      createFolder.mutate(
+        {
+          accountId: selectedAccountId,
+          bucket: selectedBucket,
+          prefix,
+          folderName,
+        },
+        {
+          onSuccess: () => {
+            setCreateFolderDialogOpen(false);
+            toast.success(`Created folder "${folderName}"`);
+          },
+          onError: (error) => {
+            toast.error(`Failed to create folder: ${error.message}`);
+          },
+        },
+      );
+    },
+    [selectedAccountId, selectedBucket, prefix, createFolder],
+  );
 
   return (
     <header className="flex h-12 shrink-0 items-center justify-between gap-2 border-b bg-background/80 backdrop-blur-sm px-3">
       <div className="flex items-center gap-2 min-w-0 flex-1">
         <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="h-5 mr-1" />
+        <Separator orientation="vertical" className="h-5 mr-1 my-auto" />
 
         {/* Breadcrumb navigation */}
         <nav className="flex items-center gap-0.5 text-sm min-w-0 overflow-hidden">
@@ -174,7 +207,7 @@ export function Toolbar() {
                   "h-7 px-2 min-w-0",
                   index === currentPath.length - 1
                     ? "font-medium text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
                 )}
                 onClick={() => handleBreadcrumbClick(index)}
               >
@@ -185,7 +218,11 @@ export function Toolbar() {
         </nav>
       </div>
 
-      <div className="flex items-center gap-0.5">
+      <div className="flex items-center gap-1.5">
+        <SearchInput />
+
+        <Separator orientation="vertical" className="h-5 my-auto" />
+
         {/* Selection indicator and actions menu */}
         {hasSelection && (
           <>
@@ -207,21 +244,49 @@ export function Toolbar() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem
-                  variant="destructive"
-                  onClick={handleDeleteRequest}
+                  onClick={() => {
+                    // Filter out folders - only download files
+                    const fileKeys = selectedItems
+                      .filter((item) => !item.isFolder)
+                      .map((item) => item.key);
+                    if (fileKeys.length > 0) {
+                      queueDownloads(fileKeys);
+                      toast.success(`Downloading ${fileKeys.length} file(s)`);
+                    } else {
+                      toast.error("No files selected to download");
+                    }
+                  }}
                 >
+                  <Download />
+                  Download
+                  {selectedItems.filter((i) => !i.isFolder).length > 1
+                    ? ` (${selectedItems.filter((i) => !i.isFolder).length} files)`
+                    : ""}
+                </DropdownMenuItem>
+                <DropdownMenuItem variant="destructive" onClick={handleDeleteRequest}>
                   <Trash2 />
                   Delete{selectedFileKeys.length > 1 ? ` (${selectedFileKeys.length} items)` : ""}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Separator orientation="vertical" className="h-5 mx-1.5" />
+            <Separator orientation="vertical" className="h-5 mx-1.5 my-auto" />
           </>
         )}
 
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={() => setCreateFolderDialogOpen(true)}
+          disabled={!selectedBucket}
+          title="New Folder"
+          className="text-muted-foreground hover:text-foreground"
+        >
+          <FolderPlus className="h-4 w-4" />
+        </Button>
+
         <UploadButton />
 
-        <Separator orientation="vertical" className="h-5 mx-1.5" />
+        <Separator orientation="vertical" className="h-5 my-auto mx-1.5" />
 
         <Button
           variant="ghost"
@@ -234,7 +299,7 @@ export function Toolbar() {
           <RefreshCw className="h-4 w-4" />
         </Button>
 
-        <Separator orientation="vertical" className="h-5 mx-1.5" />
+        <Separator orientation="vertical" className="h-5 mx-1.5 my-auto" />
 
         <Button
           variant="ghost"
@@ -257,6 +322,14 @@ export function Toolbar() {
         items={selectedItems}
         onConfirm={handleConfirmDelete}
         isDeleting={deleteObjects.isPending}
+      />
+
+      <CreateFolderDialog
+        open={createFolderDialogOpen}
+        onOpenChange={setCreateFolderDialogOpen}
+        onConfirm={handleCreateFolder}
+        isCreating={createFolder.isPending}
+        currentPath={prefix || "/"}
       />
     </header>
   );

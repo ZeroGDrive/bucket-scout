@@ -28,6 +28,9 @@ pub fn run() {
             commands::objects::get_object_metadata,
             commands::objects::upload_object,
             commands::objects::delete_objects,
+            commands::objects::create_folder,
+            commands::objects::search_objects,
+            commands::objects::download_object,
             // Preview commands
             commands::preview::get_preview,
             commands::preview::get_thumbnail,

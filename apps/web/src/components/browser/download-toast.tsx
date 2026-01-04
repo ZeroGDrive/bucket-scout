@@ -1,15 +1,25 @@
 import { useState } from "react";
-import { X, CheckCircle2, XCircle, Loader2, ChevronDown, ChevronUp, RotateCcw } from "lucide-react";
+import {
+  X,
+  CheckCircle2,
+  XCircle,
+  Loader2,
+  ChevronDown,
+  ChevronUp,
+  RotateCcw,
+  Download,
+  FolderOpen,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  useUploadStore,
-  useUploadQueue,
-  useUploadCounts,
-  useTotalProgress,
-} from "@/lib/upload-store";
+  useDownloadStore,
+  useDownloadQueue,
+  useDownloadCounts,
+  useTotalDownloadProgress,
+} from "@/lib/download-store";
 import { cn } from "@/lib/utils";
-import type { UploadItem, UploadStatus } from "@/lib/types";
+import type { DownloadItem, DownloadStatus } from "@/lib/types";
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
@@ -18,11 +28,11 @@ function formatBytes(bytes: number): string {
   return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`;
 }
 
-function StatusIcon({ status }: { status: UploadStatus }) {
+function StatusIcon({ status }: { status: DownloadStatus }) {
   switch (status) {
     case "pending":
       return <div className="h-3 w-3 rounded-full bg-muted-foreground/40" />;
-    case "uploading":
+    case "downloading":
       return <Loader2 className="h-3 w-3 text-primary animate-spin" />;
     case "completed":
       return <CheckCircle2 className="h-3 w-3 text-green-500" />;
@@ -34,52 +44,74 @@ function StatusIcon({ status }: { status: UploadStatus }) {
   }
 }
 
-function UploadItemRow({ item }: { item: UploadItem }) {
-  const { removeUpload, retryUpload } = useUploadStore();
+function DownloadItemRow({ item }: { item: DownloadItem }) {
+  const { removeDownload, retryDownload } = useDownloadStore();
 
-  // Get filename from file object, filePath, or key
-  const fileName =
-    item.file?.name ?? item.filePath?.split("/").pop() ?? item.key.split("/").pop() ?? "Unknown";
+  const handleOpenFolder = () => {
+    if (item.path) {
+      // Open the containing folder using shell
+      const folderPath = item.path.substring(0, item.path.lastIndexOf("/"));
+      // For Tauri, we'd use shell.open but for now just log
+      console.log("Would open folder:", folderPath);
+    }
+  };
 
   return (
     <div className="flex items-center gap-2 py-1.5 px-2 text-xs group">
       <StatusIcon status={item.status} />
-      <span className="flex-1 truncate">{fileName}</span>
+      <span className="flex-1 truncate">{item.fileName}</span>
       <span className="text-muted-foreground tabular-nums">
-        {item.status === "uploading" ? `${item.progress}%` : formatBytes(item.totalBytes)}
+        {item.status === "downloading"
+          ? `${item.progress}%`
+          : item.totalBytes > 0
+            ? formatBytes(item.totalBytes)
+            : "-"}
       </span>
       {(item.status === "failed" || item.status === "cancelled") && (
         <Button
           variant="ghost"
           size="icon"
           className="h-5 w-5 opacity-0 group-hover:opacity-100"
-          onClick={() => retryUpload(item.id)}
+          onClick={() => retryDownload(item.id)}
         >
           <RotateCcw className="h-3 w-3" />
         </Button>
       )}
       {item.status === "completed" && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-5 w-5 opacity-0 group-hover:opacity-100"
-          onClick={() => removeUpload(item.id)}
-        >
-          <X className="h-3 w-3" />
-        </Button>
+        <>
+          {item.path && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-5 w-5 opacity-0 group-hover:opacity-100"
+              onClick={handleOpenFolder}
+              title="Open in folder"
+            >
+              <FolderOpen className="h-3 w-3" />
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-5 w-5 opacity-0 group-hover:opacity-100"
+            onClick={() => removeDownload(item.id)}
+          >
+            <X className="h-3 w-3" />
+          </Button>
+        </>
       )}
     </div>
   );
 }
 
-export function UploadToast() {
+export function DownloadToast() {
   const [isExpanded, setIsExpanded] = useState(false);
-  const queue = useUploadQueue();
-  const counts = useUploadCounts();
-  const totalProgress = useTotalProgress();
-  const { clearCompleted, clearAll } = useUploadStore();
+  const queue = useDownloadQueue();
+  const counts = useDownloadCounts();
+  const totalProgress = useTotalDownloadProgress();
+  const { clearCompleted, clearAll } = useDownloadStore();
 
-  // Don't render if no uploads
+  // Don't render if no downloads
   if (counts.total === 0) return null;
 
   const hasActive = counts.active > 0 || counts.pending > 0;
@@ -87,7 +119,7 @@ export function UploadToast() {
   const hasFailed = counts.failed > 0;
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 w-80">
+    <div className="fixed bottom-4 right-96 z-50 w-80">
       <div className="bg-popover border rounded-lg shadow-lg overflow-hidden">
         {/* Header */}
         <div
@@ -98,22 +130,24 @@ export function UploadToast() {
           onClick={() => setIsExpanded(!isExpanded)}
         >
           {hasActive ? (
-            <Loader2 className="h-4 w-4 text-primary animate-spin shrink-0" />
+            <Download className="h-4 w-4 text-primary animate-pulse shrink-0" />
           ) : allComplete ? (
             <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
           ) : hasFailed ? (
             <XCircle className="h-4 w-4 text-destructive shrink-0" />
-          ) : null}
+          ) : (
+            <Download className="h-4 w-4 text-muted-foreground shrink-0" />
+          )}
 
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium truncate">
               {hasActive
-                ? `Uploading ${counts.active + counts.pending} file${counts.active + counts.pending > 1 ? "s" : ""}...`
+                ? `Downloading ${counts.active + counts.pending} file${counts.active + counts.pending > 1 ? "s" : ""}...`
                 : allComplete
-                  ? `${counts.completed} file${counts.completed > 1 ? "s" : ""} uploaded`
+                  ? `${counts.completed} file${counts.completed > 1 ? "s" : ""} downloaded`
                   : hasFailed
-                    ? `${counts.failed} upload${counts.failed > 1 ? "s" : ""} failed`
-                    : "Uploads"}
+                    ? `${counts.failed} download${counts.failed > 1 ? "s" : ""} failed`
+                    : "Downloads"}
             </p>
             {hasActive && (
               <div className="mt-1 h-1 bg-muted rounded-full overflow-hidden">
@@ -153,7 +187,7 @@ export function UploadToast() {
             <ScrollArea className="max-h-48">
               <div className="divide-y">
                 {queue.map((item) => (
-                  <UploadItemRow key={item.id} item={item} />
+                  <DownloadItemRow key={item.id} item={item} />
                 ))}
               </div>
             </ScrollArea>

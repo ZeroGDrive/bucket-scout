@@ -65,16 +65,12 @@ export interface ThumbnailData {
 }
 
 // Upload types
-export type UploadStatus =
-  | "pending"
-  | "uploading"
-  | "completed"
-  | "failed"
-  | "cancelled";
+export type UploadStatus = "pending" | "uploading" | "completed" | "failed" | "cancelled";
 
 export interface UploadItem {
   id: string;
-  file: File;
+  file: File | null; // null when using native file path
+  filePath?: string; // native file path for Tauri drag and drop
   key: string;
   status: UploadStatus;
   progress: number;
@@ -117,5 +113,46 @@ export interface DeleteResult {
 
 export interface DeleteError {
   key: string;
+  error: string;
+}
+
+// Download types
+export type DownloadStatus = "pending" | "downloading" | "completed" | "failed" | "cancelled";
+
+export interface DownloadItem {
+  id: string;
+  key: string;
+  fileName: string;
+  status: DownloadStatus;
+  progress: number;
+  bytesDownloaded: number;
+  totalBytes: number;
+  error?: string;
+  startedAt?: number;
+  completedAt?: number;
+  path?: string; // Final downloaded file path
+}
+
+// Download event payloads (used with Tauri global events)
+export interface DownloadStartedPayload {
+  downloadId: string;
+  fileName: string;
+  totalBytes: number;
+}
+
+export interface DownloadProgressPayload {
+  downloadId: string;
+  bytesDownloaded: number;
+  totalBytes: number;
+}
+
+export interface DownloadCompletedPayload {
+  downloadId: string;
+  key: string;
+  path: string;
+}
+
+export interface DownloadFailedPayload {
+  downloadId: string;
   error: string;
 }

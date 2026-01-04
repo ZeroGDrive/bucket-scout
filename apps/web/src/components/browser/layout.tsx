@@ -1,7 +1,4 @@
-import {
-  SidebarProvider,
-  SidebarInset,
-} from "@/components/ui/sidebar";
+import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { useBrowserStore } from "@/lib/store";
 import { AppSidebar } from "./app-sidebar";
 import { FileExplorer } from "./file-explorer";
@@ -9,10 +6,8 @@ import { PreviewPanel } from "./preview-panel";
 import { Toolbar } from "./toolbar";
 import { DropZone } from "./drop-zone";
 import { UploadToast } from "./upload-toast";
-import {
-  Sheet,
-  SheetContent,
-} from "@/components/ui/sheet";
+import { DownloadToast } from "./download-toast";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 
 export function BrowserLayout() {
   const selectedFileKeys = useBrowserStore((s) => s.selectedFileKeys);
@@ -51,6 +46,7 @@ export function BrowserLayout() {
       </Sheet>
 
       <UploadToast />
+      <DownloadToast />
     </SidebarProvider>
   );
 }
