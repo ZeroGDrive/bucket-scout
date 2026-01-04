@@ -11,6 +11,10 @@ interface BrowserState {
   selectedFileKeys: string[]; // Multi-selection (array for React reactivity)
   lastSelectedKey: string | null; // For Shift+click range selection
 
+  // Search state
+  searchQuery: string;
+  searchRecursive: boolean; // Toggle for recursive search
+
   // UI state
   viewMode: ViewMode;
   sidebarWidth: number;
@@ -33,6 +37,9 @@ interface BrowserState {
   setSidebarWidth: (width: number) => void;
   setPreviewPanelOpen: (open: boolean) => void;
   togglePreviewPanel: () => void;
+  setSearchQuery: (query: string) => void;
+  setSearchRecursive: (recursive: boolean) => void;
+  clearSearch: () => void;
 }
 
 export const useBrowserStore = create<BrowserState>()(
@@ -44,6 +51,8 @@ export const useBrowserStore = create<BrowserState>()(
       currentPath: [],
       selectedFileKeys: [],
       lastSelectedKey: null,
+      searchQuery: "",
+      searchRecursive: true,
       viewMode: "list",
       sidebarWidth: 240,
       previewPanelOpen: true,
@@ -71,6 +80,7 @@ export const useBrowserStore = create<BrowserState>()(
           currentPath: path,
           selectedFileKeys: [],
           lastSelectedKey: null,
+          searchQuery: "",
         }),
 
       navigateTo: (folder) => {
@@ -82,6 +92,7 @@ export const useBrowserStore = create<BrowserState>()(
           currentPath: [...currentPath, folderName],
           selectedFileKeys: [],
           lastSelectedKey: null,
+          searchQuery: "",
         });
       },
 
@@ -92,6 +103,7 @@ export const useBrowserStore = create<BrowserState>()(
             currentPath: currentPath.slice(0, -1),
             selectedFileKeys: [],
             lastSelectedKey: null,
+            searchQuery: "",
           });
         }
       },
@@ -101,6 +113,7 @@ export const useBrowserStore = create<BrowserState>()(
           currentPath: [],
           selectedFileKeys: [],
           lastSelectedKey: null,
+          searchQuery: "",
         }),
 
       selectFile: (key) =>
@@ -184,8 +197,13 @@ export const useBrowserStore = create<BrowserState>()(
 
       setPreviewPanelOpen: (open) => set({ previewPanelOpen: open }),
 
-      togglePreviewPanel: () =>
-        set((state) => ({ previewPanelOpen: !state.previewPanelOpen })),
+      togglePreviewPanel: () => set((state) => ({ previewPanelOpen: !state.previewPanelOpen })),
+
+      setSearchQuery: (query) => set({ searchQuery: query }),
+
+      setSearchRecursive: (recursive) => set({ searchRecursive: recursive }),
+
+      clearSearch: () => set({ searchQuery: "" }),
     }),
     {
       name: "s3-browser-storage",
@@ -194,21 +212,22 @@ export const useBrowserStore = create<BrowserState>()(
         sidebarWidth: state.sidebarWidth,
         previewPanelOpen: state.previewPanelOpen,
       }),
-    }
-  )
+    },
+  ),
 );
 
 // Selector helpers
-export const useSelectedAccount = () =>
-  useBrowserStore((state) => state.selectedAccountId);
-export const useSelectedBucket = () =>
-  useBrowserStore((state) => state.selectedBucket);
-export const useCurrentPath = () =>
-  useBrowserStore((state) => state.currentPath);
+export const useSelectedAccount = () => useBrowserStore((state) => state.selectedAccountId);
+export const useSelectedBucket = () => useBrowserStore((state) => state.selectedBucket);
+export const useCurrentPath = () => useBrowserStore((state) => state.currentPath);
 export const useViewMode = () => useBrowserStore((state) => state.viewMode);
 
 // Get the current prefix for S3 queries
 export const useCurrentPrefix = () =>
   useBrowserStore((state) =>
-    state.currentPath.length > 0 ? state.currentPath.join("/") + "/" : ""
+    state.currentPath.length > 0 ? state.currentPath.join("/") + "/" : "",
   );
+
+// Search selectors
+export const useSearchQuery = () => useBrowserStore((state) => state.searchQuery);
+export const useSearchRecursive = () => useBrowserStore((state) => state.searchRecursive);

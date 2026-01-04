@@ -53,9 +53,7 @@ export function DeleteConfirmationDialog({
             Delete {items.length === 1 ? `"${items[0].name}"` : `${items.length} items`}?
           </AlertDialogTitle>
           <AlertDialogDescription className="space-y-2">
-            <p>
-              You are about to delete {getDescription()}. This action cannot be undone.
-            </p>
+            <p>You are about to delete {getDescription()}. This action cannot be undone.</p>
             {items.length > 1 && items.length <= 5 && (
               <ul className="mt-2 list-disc pl-5 text-sm">
                 {itemNames.map((name, index) => (
@@ -83,11 +81,7 @@ export function DeleteConfirmationDialog({
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-          <Button
-            variant="destructive"
-            onClick={onConfirm}
-            disabled={isDeleting}
-          >
+          <Button variant="destructive" onClick={onConfirm} disabled={isDeleting}>
             {isDeleting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

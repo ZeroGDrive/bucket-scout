@@ -7,6 +7,7 @@ import type {
   PreviewData,
   ThumbnailData,
   DeleteResult,
+  S3Object,
 } from "./types";
 
 // Credentials commands
@@ -49,14 +50,12 @@ export const credentials = {
       accountId: params.accountId,
     }),
 
-  testConnection: (id: string) =>
-    invoke<boolean>("test_connection", { id }),
+  testConnection: (id: string) => invoke<boolean>("test_connection", { id }),
 };
 
 // Bucket commands
 export const buckets = {
-  list: (accountId: string) =>
-    invoke<Bucket[]>("list_buckets", { accountId }),
+  list: (accountId: string) => invoke<Bucket[]>("list_buckets", { accountId }),
 };
 
 // Object commands
@@ -106,16 +105,54 @@ export const objects = {
       bucket: params.bucket,
       keys: params.keys,
     }),
+
+  createFolder: (params: {
+    accountId: string;
+    bucket: string;
+    prefix: string;
+    folderName: string;
+  }) =>
+    invoke<string>("create_folder", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+      prefix: params.prefix,
+      folderName: params.folderName,
+    }),
+
+  search: (params: {
+    accountId: string;
+    bucket: string;
+    prefix: string;
+    query: string;
+    maxResults?: number;
+  }) =>
+    invoke<S3Object[]>("search_objects", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+      prefix: params.prefix,
+      query: params.query,
+      maxResults: params.maxResults,
+    }),
+
+  download: (params: {
+    accountId: string;
+    bucket: string;
+    key: string;
+    destination: string;
+    downloadId: string;
+  }) =>
+    invoke<string>("download_object", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+      key: params.key,
+      destination: params.destination,
+      downloadId: params.downloadId,
+    }),
 };
 
 // Preview commands
 export const preview = {
-  get: (params: {
-    accountId: string;
-    bucket: string;
-    key: string;
-    maxSize?: number;
-  }) =>
+  get: (params: { accountId: string; bucket: string; key: string; maxSize?: number }) =>
     invoke<PreviewData>("get_preview", {
       accountId: params.accountId,
       bucket: params.bucket,
@@ -123,12 +160,7 @@ export const preview = {
       maxSize: params.maxSize,
     }),
 
-  getThumbnail: (params: {
-    accountId: string;
-    bucket: string;
-    key: string;
-    size?: number;
-  }) =>
+  getThumbnail: (params: { accountId: string; bucket: string; key: string; size?: number }) =>
     invoke<ThumbnailData | null>("get_thumbnail", {
       accountId: params.accountId,
       bucket: params.bucket,

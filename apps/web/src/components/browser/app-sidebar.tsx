@@ -32,12 +32,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useBrowserStore } from "@/lib/store";
-import {
-  useAccounts,
-  useBuckets,
-  useRemoveAccount,
-  useTestConnection,
-} from "@/lib/queries";
+import { useAccounts, useBuckets, useRemoveAccount, useTestConnection } from "@/lib/queries";
 import { AddAccountDialog } from "@/components/accounts/add-account-dialog";
 import { toast } from "sonner";
 
@@ -142,9 +137,7 @@ export function AppSidebar() {
                           <MoreVertical className="h-4 w-4" />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" side="right">
-                          <DropdownMenuItem
-                            onClick={() => handleTestConnection(account.id)}
-                          >
+                          <DropdownMenuItem onClick={() => handleTestConnection(account.id)}>
                             <RefreshCw className="h-4 w-4 mr-2" />
                             Test Connection
                           </DropdownMenuItem>
@@ -161,9 +154,7 @@ export function AppSidebar() {
                   ))
                 ) : (
                   <div className="px-2 py-6 text-center">
-                    <p className="text-xs text-muted-foreground mb-2">
-                      No accounts configured
-                    </p>
+                    <p className="text-xs text-muted-foreground mb-2">No accounts configured</p>
                     <Button
                       variant="outline"
                       size="sm"
@@ -213,9 +204,7 @@ export function AppSidebar() {
                       ))
                     ) : (
                       <div className="px-2 py-4 text-center">
-                        <p className="text-xs text-muted-foreground">
-                          No buckets found
-                        </p>
+                        <p className="text-xs text-muted-foreground">No buckets found</p>
                       </div>
                     )}
                   </SidebarMenu>

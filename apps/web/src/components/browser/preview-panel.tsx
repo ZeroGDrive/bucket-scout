@@ -7,6 +7,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { useBrowserStore } from "@/lib/store";
 import { usePreview, useAccount } from "@/lib/queries";
+import { useDownloadManager } from "@/hooks/use-download-manager";
+import { toast } from "sonner";
 
 function formatFileSize(bytes: number): string {
   if (bytes === 0) return "0 B";
@@ -33,12 +35,13 @@ export function PreviewPanel() {
   const selectedFilesCount = selectedFileKeys.length;
 
   const { data: account } = useAccount(selectedAccountId);
-  const { data: preview, isLoading, error } = usePreview(
-    selectedAccountId,
-    selectedBucket,
-    selectedFileKey
-  );
+  const {
+    data: preview,
+    isLoading,
+    error,
+  } = usePreview(selectedAccountId, selectedBucket, selectedFileKey);
 
+  const { queueDownloads } = useDownloadManager();
   const [copied, setCopied] = useState(false);
 
   const fileName = selectedFileKey?.split("/").pop() || "";
@@ -118,7 +121,9 @@ export function PreviewPanel() {
               </div>
             </div>
             <p className="text-sm font-medium mb-1">Failed to load preview</p>
-            <p className="text-xs text-center max-w-[200px] text-muted-foreground/70">{String(error)}</p>
+            <p className="text-xs text-center max-w-[200px] text-muted-foreground/70">
+              {String(error)}
+            </p>
           </div>
         ) : preview ? (
           <ScrollArea className="h-full">
@@ -141,7 +146,11 @@ export function PreviewPanel() {
             className="shrink-0"
             title="Copy path"
           >
-            {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+            {copied ? (
+              <Check className="h-3.5 w-3.5 text-green-500" />
+            ) : (
+              <Copy className="h-3.5 w-3.5" />
+            )}
           </Button>
         </div>
 
@@ -164,8 +173,10 @@ export function PreviewPanel() {
             size="sm"
             className="flex-1"
             onClick={() => {
-              // TODO: Implement download
-              console.log("Download:", selectedFileKey);
+              if (selectedFileKey) {
+                queueDownloads([selectedFileKey]);
+                toast.success("Download started");
+              }
             }}
           >
             <Download className="h-3.5 w-3.5 mr-1.5" />
@@ -231,7 +242,9 @@ function PreviewContent({ data }: { data: import("@/lib/types").PreviewContent }
             </div>
           </div>
           <p className="text-sm font-medium mb-1">Preview not available</p>
-          <p className="text-xs text-center max-w-[200px] text-muted-foreground/70">{data.message}</p>
+          <p className="text-xs text-center max-w-[200px] text-muted-foreground/70">
+            {data.message}
+          </p>
         </div>
       );
 

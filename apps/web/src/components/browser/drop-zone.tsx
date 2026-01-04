@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, type ReactNode } from "react";
+import { useState, useCallback, useRef, useEffect, type ReactNode } from "react";
 import { Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUploadManager } from "@/hooks/use-upload-manager";
@@ -11,37 +11,127 @@ interface DropZoneProps {
 
 export function DropZone({ children, className }: DropZoneProps) {
   const [isDragOver, setIsDragOver] = useState(false);
+  const [inTauri, setInTauri] = useState(false);
   const dragCountRef = useRef(0);
-  const { queueFiles } = useUploadManager();
+  const { queueFiles, queueFilePaths } = useUploadManager();
   const selectedBucket = useBrowserStore((s) => s.selectedBucket);
 
   const disabled = !selectedBucket;
+  // Use ref to avoid stale closure in event handler
+  const disabledRef = useRef(disabled);
+  disabledRef.current = disabled;
 
-  const handleDragEnter = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragCountRef.current++;
-    if (e.dataTransfer.types.includes("Files")) {
-      setIsDragOver(true);
-    }
-  }, []);
+  const queueFilePathsRef = useRef(queueFilePaths);
+  queueFilePathsRef.current = queueFilePaths;
 
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragCountRef.current--;
-    if (dragCountRef.current === 0) {
-      setIsDragOver(false);
-    }
-  }, []);
+  // Set up Tauri native drag and drop listener
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    let mounted = true;
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  }, []);
+    const setupListener = async () => {
+      try {
+        // Use the official isTauri() function from @tauri-apps/api/core
+        const { isTauri } = await import("@tauri-apps/api/core");
+        const tauriDetected = isTauri();
+
+        console.log("[drop-zone] Tauri detected (via @tauri-apps/api/core):", tauriDetected);
+
+        if (!tauriDetected) {
+          console.log("[drop-zone] Not in Tauri environment, using web drag and drop");
+          if (mounted) setInTauri(false);
+          return;
+        }
+
+        if (mounted) setInTauri(true);
+        console.log("[drop-zone] Setting up Tauri drag and drop listener");
+
+        const { getCurrentWebview } = await import("@tauri-apps/api/webview");
+        const webview = getCurrentWebview();
+
+        console.log("[drop-zone] Got webview, registering onDragDropEvent");
+
+        unlisten = await webview.onDragDropEvent((event) => {
+          console.log("[drop-zone] Drag event:", event.payload.type, event.payload);
+
+          if (disabledRef.current) {
+            console.log("[drop-zone] Disabled, ignoring event");
+            return;
+          }
+
+          const eventType = event.payload.type;
+          if (eventType === "enter" || eventType === "over") {
+            setIsDragOver(true);
+          } else if (eventType === "leave") {
+            setIsDragOver(false);
+          } else if (eventType === "drop") {
+            setIsDragOver(false);
+            if ("paths" in event.payload && event.payload.paths.length > 0) {
+              console.log("[drop-zone] Tauri drop:", event.payload.paths);
+              queueFilePathsRef.current(event.payload.paths);
+            }
+          }
+        });
+
+        if (mounted) {
+          console.log("[drop-zone] Tauri drag and drop listener registered");
+        }
+      } catch (error) {
+        console.error("[drop-zone] Failed to set up Tauri drag and drop:", error);
+        if (mounted) setInTauri(false);
+      }
+    };
+
+    setupListener();
+
+    return () => {
+      mounted = false;
+      if (unlisten) {
+        console.log("[drop-zone] Cleaning up Tauri drag and drop listener");
+        unlisten();
+      }
+    };
+  }, []); // Empty deps - refs handle updates
+
+  // Web-based drag and drop handlers (fallback for non-Tauri)
+  const handleDragEnter = useCallback(
+    (e: React.DragEvent) => {
+      if (inTauri) return; // Skip web handlers in Tauri
+      e.preventDefault();
+      e.stopPropagation();
+      dragCountRef.current++;
+      if (e.dataTransfer.types.includes("Files")) {
+        setIsDragOver(true);
+      }
+    },
+    [inTauri],
+  );
+
+  const handleDragLeave = useCallback(
+    (e: React.DragEvent) => {
+      if (inTauri) return;
+      e.preventDefault();
+      e.stopPropagation();
+      dragCountRef.current--;
+      if (dragCountRef.current === 0) {
+        setIsDragOver(false);
+      }
+    },
+    [inTauri],
+  );
+
+  const handleDragOver = useCallback(
+    (e: React.DragEvent) => {
+      if (inTauri) return;
+      e.preventDefault();
+      e.stopPropagation();
+    },
+    [inTauri],
+  );
 
   const handleDrop = useCallback(
     async (e: React.DragEvent) => {
+      if (inTauri) return; // Tauri handles drops natively
       e.preventDefault();
       e.stopPropagation();
       dragCountRef.current = 0;
@@ -75,7 +165,7 @@ export function DropZone({ children, className }: DropZoneProps) {
         queueFiles(e.dataTransfer.files);
       }
     },
-    [disabled, queueFiles]
+    [inTauri, disabled, queueFiles],
   );
 
   return (
@@ -103,14 +193,11 @@ export function DropZone({ children, className }: DropZoneProps) {
   );
 }
 
-// Recursively process file entries (for folder support)
+// Recursively process file entries (for folder support in web mode)
 async function processEntries(entries: FileSystemEntry[]): Promise<File[]> {
   const files: File[] = [];
 
-  async function processEntry(
-    entry: FileSystemEntry,
-    path = ""
-  ): Promise<void> {
+  async function processEntry(entry: FileSystemEntry, path = ""): Promise<void> {
     if (entry.isFile) {
       const fileEntry = entry as FileSystemFileEntry;
       const file = await new Promise<File>((resolve, reject) => {
@@ -130,11 +217,9 @@ async function processEntries(entries: FileSystemEntry[]): Promise<File[]> {
     } else if (entry.isDirectory) {
       const dirEntry = entry as FileSystemDirectoryEntry;
       const reader = dirEntry.createReader();
-      const subEntries = await new Promise<FileSystemEntry[]>(
-        (resolve, reject) => {
-          reader.readEntries(resolve, reject);
-        }
-      );
+      const subEntries = await new Promise<FileSystemEntry[]>((resolve, reject) => {
+        reader.readEntries(resolve, reject);
+      });
       for (const subEntry of subEntries) {
         await processEntry(subEntry, path + entry.name + "/");
       }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { tempDir } from "@tauri-apps/api/path";
-import { writeFile, remove } from "@tauri-apps/plugin-fs";
+import { writeFile, remove, stat } from "@tauri-apps/plugin-fs";
 import { useQueryClient } from "@tanstack/react-query";
 import { objects } from "@/lib/tauri";
 import { useUploadStore } from "@/lib/upload-store";
@@ -40,14 +40,11 @@ export function useUploadManager() {
 
     const setupListeners = async () => {
       // Listen for progress events
-      const unlistenProgress = await listen<UploadProgressPayload>(
-        "upload-progress",
-        (event) => {
-          console.log("[upload] Progress event:", event.payload);
-          const { uploadId, bytesUploaded, totalBytes } = event.payload;
-          updateProgress(uploadId, bytesUploaded, totalBytes);
-        }
-      );
+      const unlistenProgress = await listen<UploadProgressPayload>("upload-progress", (event) => {
+        console.log("[upload] Progress event:", event.payload);
+        const { uploadId, bytesUploaded, totalBytes } = event.payload;
+        updateProgress(uploadId, bytesUploaded, totalBytes);
+      });
       unlisteners.push(unlistenProgress);
 
       // Listen for completed events
@@ -70,26 +67,19 @@ export function useUploadManager() {
           const prefix = path.length > 0 ? path.join("/") + "/" : "";
           if (state.selectedAccountId && state.selectedBucket) {
             queryClient.invalidateQueries({
-              queryKey: queryKeys.objects(
-                state.selectedAccountId,
-                state.selectedBucket,
-                prefix
-              ),
+              queryKey: queryKeys.objects(state.selectedAccountId, state.selectedBucket, prefix),
             });
           }
-        }
+        },
       );
       unlisteners.push(unlistenCompleted);
 
       // Listen for failed events
-      const unlistenFailed = await listen<UploadFailedPayload>(
-        "upload-failed",
-        (event) => {
-          console.log("[upload] Failed event:", event.payload);
-          const { uploadId, error } = event.payload;
-          setStatus(uploadId, "failed", error);
-        }
-      );
+      const unlistenFailed = await listen<UploadFailedPayload>("upload-failed", (event) => {
+        console.log("[upload] Failed event:", event.payload);
+        const { uploadId, error } = event.payload;
+        setStatus(uploadId, "failed", error);
+      });
       unlisteners.push(unlistenFailed);
     };
 
@@ -108,23 +98,39 @@ export function useUploadManager() {
       const abortController = new AbortController();
       abortControllersRef.current.set(item.id, abortController);
 
-      // Write browser File to temp directory for Tauri
+      // For native file paths (Tauri drag and drop), upload directly
+      // For browser Files, write to temp directory first
       let tempPath: string | null = null;
+      let uploadPath: string;
+      let contentType: string | undefined;
+
       try {
-        const buffer = await item.file.arrayBuffer();
-        const tempDirPath = await tempDir();
-        tempPath = `${tempDirPath}${crypto.randomUUID()}_${item.file.name}`;
-        await writeFile(tempPath, new Uint8Array(buffer));
-        console.log("[upload] Temp file written:", tempPath);
+        if (item.filePath) {
+          // Native file path from Tauri drag and drop
+          uploadPath = item.filePath;
+          contentType = undefined; // Let Rust detect content type
+          console.log("[upload] Using native file path:", uploadPath);
+        } else if (item.file) {
+          // Browser File object - write to temp directory
+          const buffer = await item.file.arrayBuffer();
+          const tempDirPath = await tempDir();
+          tempPath = `${tempDirPath}${crypto.randomUUID()}_${item.file.name}`;
+          await writeFile(tempPath, new Uint8Array(buffer));
+          uploadPath = tempPath;
+          contentType = item.file.type || undefined;
+          console.log("[upload] Temp file written:", tempPath);
+        } else {
+          throw new Error("No file or filePath provided");
+        }
 
         console.log("[upload] Starting upload invoke for:", item.id);
         await objects.upload({
           accountId: selectedAccountId,
           bucket: selectedBucket,
-          filePath: tempPath,
+          filePath: uploadPath,
           key: item.key,
-          contentType: item.file.type || undefined,
-          uploadId: item.id, // Pass the frontend ID to Rust
+          contentType,
+          uploadId: item.id,
         });
         console.log("[upload] Upload invoke completed for:", item.id);
       } catch (error) {
@@ -133,7 +139,7 @@ export function useUploadManager() {
           setStatus(item.id, "failed", String(error));
         }
       } finally {
-        // Clean up temp file
+        // Clean up temp file (only if we created one)
         if (tempPath) {
           try {
             await remove(tempPath);
@@ -144,7 +150,7 @@ export function useUploadManager() {
         abortControllersRef.current.delete(item.id);
       }
     },
-    [selectedAccountId, selectedBucket, setStatus]
+    [selectedAccountId, selectedBucket, setStatus],
   );
 
   // Process upload queue
@@ -164,16 +170,9 @@ export function useUploadManager() {
     }
 
     processingRef.current = false;
-  }, [
-    selectedAccountId,
-    selectedBucket,
-    canStartUpload,
-    getNextPending,
-    setStatus,
-    uploadFile,
-  ]);
+  }, [selectedAccountId, selectedBucket, canStartUpload, getNextPending, setStatus, uploadFile]);
 
-  // Queue files for upload
+  // Queue files for upload (browser File objects)
   const queueFiles = useCallback(
     (files: FileList | File[]) => {
       if (!selectedAccountId || !selectedBucket) {
@@ -187,8 +186,7 @@ export function useUploadManager() {
       for (const file of Array.from(files)) {
         // Use webkitRelativePath for folder uploads, otherwise just the filename
         const relativePath =
-          (file as File & { webkitRelativePath?: string }).webkitRelativePath ||
-          file.name;
+          (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
 
         const key = prefix + relativePath;
 
@@ -207,7 +205,51 @@ export function useUploadManager() {
       addUploads(items);
       // Toast notification is handled by UploadToast component
     },
-    [selectedAccountId, selectedBucket, currentPath, addUploads]
+    [selectedAccountId, selectedBucket, currentPath, addUploads],
+  );
+
+  // Queue file paths for upload (native Tauri drag and drop)
+  const queueFilePaths = useCallback(
+    async (filePaths: string[]) => {
+      if (!selectedAccountId || !selectedBucket) {
+        toast.error("Please select a bucket first");
+        return;
+      }
+
+      const prefix = currentPath.length > 0 ? currentPath.join("/") + "/" : "";
+      const items: UploadItem[] = [];
+
+      for (const filePath of filePaths) {
+        try {
+          // Get file stats to determine size
+          const fileStats = await stat(filePath);
+
+          // Extract filename from path
+          const fileName = filePath.split("/").pop() || filePath;
+          const key = prefix + fileName;
+
+          items.push({
+            id: crypto.randomUUID(),
+            file: null,
+            filePath,
+            key,
+            status: "pending",
+            progress: 0,
+            bytesUploaded: 0,
+            totalBytes: fileStats.size,
+            startedAt: Date.now(),
+          });
+        } catch (error) {
+          console.error(`[upload] Failed to stat file ${filePath}:`, error);
+          toast.error(`Failed to read file: ${filePath.split("/").pop()}`);
+        }
+      }
+
+      if (items.length > 0) {
+        addUploads(items);
+      }
+    },
+    [selectedAccountId, selectedBucket, currentPath, addUploads],
   );
 
   // Cancel an upload
@@ -228,6 +270,7 @@ export function useUploadManager() {
 
   return {
     queueFiles,
+    queueFilePaths,
     cancelUpload,
   };
 }

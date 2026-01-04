@@ -111,8 +111,7 @@ export const useUploadStore = create<UploadState>((set, get) => ({
           ...upload,
           status,
           error,
-          completedAt:
-            status === "completed" || status === "failed" ? Date.now() : undefined,
+          completedAt: status === "completed" || status === "failed" ? Date.now() : undefined,
         });
       }
       return { uploads, ...computeDerivedState(uploads) };
@@ -182,6 +181,4 @@ export const useUploadCounts = () => useUploadStore((state) => state.counts);
 export const useTotalProgress = () => useUploadStore((state) => state.totalProgress);
 
 export const useActiveUploads = () =>
-  useUploadStore((state) =>
-    state.uploadList.filter((u) => u.status === "uploading")
-  );
+  useUploadStore((state) => state.uploadList.filter((u) => u.status === "uploading"));

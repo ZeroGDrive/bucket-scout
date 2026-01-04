@@ -518,3 +518,312 @@ async fn upload_multipart(
         .e_tag()
         .map(|s| s.trim_matches('"').to_string()))
 }
+
+/// Create a folder in S3 by creating a zero-byte object with a trailing slash
+#[tauri::command(rename_all = "camelCase")]
+pub async fn create_folder(
+    credentials: State<'_, CredentialsManager>,
+    s3_clients: State<'_, S3ClientManager>,
+    account_id: String,
+    bucket: String,
+    prefix: String,
+    folder_name: String,
+) -> Result<String, AppError> {
+    // Validate folder name
+    if folder_name.is_empty() {
+        return Err(AppError::InvalidInput("Folder name cannot be empty".into()));
+    }
+    if folder_name.contains('/') || folder_name.contains('\\') {
+        return Err(AppError::InvalidInput(
+            "Folder name cannot contain slashes".into(),
+        ));
+    }
+
+    let account = credentials.get_account(&account_id)?;
+    let secret = credentials.get_secret_key(&account_id)?;
+
+    let client = s3_clients
+        .get_or_create_client(&account_id, &account.endpoint, &account.access_key_id, &secret)
+        .await?;
+
+    // Construct the full key with trailing slash
+    let key = format!("{}{}/", prefix, folder_name);
+
+    // Create a zero-byte object to represent the folder
+    client
+        .put_object()
+        .bucket(&bucket)
+        .key(&key)
+        .body(aws_sdk_s3::primitives::ByteStream::from(Vec::new()))
+        .send()
+        .await?;
+
+    Ok(key)
+}
+
+// Download event types for progress tracking
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DownloadStarted {
+    pub download_id: String,
+    pub file_name: String,
+    pub total_bytes: u64,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DownloadProgress {
+    pub download_id: String,
+    pub bytes_downloaded: u64,
+    pub total_bytes: u64,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DownloadCompleted {
+    pub download_id: String,
+    pub key: String,
+    pub path: String,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DownloadFailed {
+    pub download_id: String,
+    pub error: String,
+}
+
+const DOWNLOAD_CHUNK_SIZE: usize = 64 * 1024; // 64KB chunks
+
+/// Download an object from S3 to local filesystem
+#[tauri::command(rename_all = "camelCase")]
+pub async fn download_object(
+    app: AppHandle,
+    credentials: State<'_, CredentialsManager>,
+    s3_clients: State<'_, S3ClientManager>,
+    account_id: String,
+    bucket: String,
+    key: String,
+    destination: String,
+    download_id: String,
+) -> Result<String, AppError> {
+    let file_name = key.rsplit('/').next().unwrap_or(&key).to_string();
+
+    let account = credentials.get_account(&account_id)?;
+    let secret = credentials.get_secret_key(&account_id)?;
+
+    let client = s3_clients
+        .get_or_create_client(&account_id, &account.endpoint, &account.access_key_id, &secret)
+        .await?;
+
+    // Get the object
+    let response = match client.get_object().bucket(&bucket).key(&key).send().await {
+        Ok(resp) => resp,
+        Err(e) => {
+            let _ = app.emit(
+                "download-failed",
+                DownloadFailed {
+                    download_id,
+                    error: format!("{:?}", e),
+                },
+            );
+            return Err(AppError::S3(format!("{:?}", e)));
+        }
+    };
+
+    let total_bytes = response.content_length().unwrap_or(0) as u64;
+
+    // Emit started event
+    let _ = app.emit(
+        "download-started",
+        DownloadStarted {
+            download_id: download_id.clone(),
+            file_name: file_name.clone(),
+            total_bytes,
+        },
+    );
+
+    // Create destination path
+    let dest_path = PathBuf::from(&destination).join(&file_name);
+
+    // Create parent directories if needed
+    if let Some(parent) = dest_path.parent() {
+        if let Err(e) = tokio::fs::create_dir_all(parent).await {
+            let _ = app.emit(
+                "download-failed",
+                DownloadFailed {
+                    download_id,
+                    error: format!("Failed to create directory: {}", e),
+                },
+            );
+            return Err(AppError::InvalidInput(format!(
+                "Failed to create directory: {}",
+                e
+            )));
+        }
+    }
+
+    // Create the file
+    let mut file = match tokio::fs::File::create(&dest_path).await {
+        Ok(f) => f,
+        Err(e) => {
+            let _ = app.emit(
+                "download-failed",
+                DownloadFailed {
+                    download_id,
+                    error: format!("Failed to create file: {}", e),
+                },
+            );
+            return Err(AppError::InvalidInput(format!(
+                "Failed to create file: {}",
+                e
+            )));
+        }
+    };
+
+    // Stream the body to file
+    let mut body = response.body.into_async_read();
+    let mut bytes_downloaded: u64 = 0;
+    let mut buffer = vec![0u8; DOWNLOAD_CHUNK_SIZE];
+
+    use tokio::io::AsyncWriteExt;
+
+    loop {
+        let bytes_read = match body.read(&mut buffer).await {
+            Ok(0) => break, // EOF
+            Ok(n) => n,
+            Err(e) => {
+                let _ = app.emit(
+                    "download-failed",
+                    DownloadFailed {
+                        download_id,
+                        error: format!("Read error: {}", e),
+                    },
+                );
+                return Err(AppError::InvalidInput(format!("Read error: {}", e)));
+            }
+        };
+
+        if let Err(e) = file.write_all(&buffer[..bytes_read]).await {
+            let _ = app.emit(
+                "download-failed",
+                DownloadFailed {
+                    download_id,
+                    error: format!("Write error: {}", e),
+                },
+            );
+            return Err(AppError::InvalidInput(format!("Write error: {}", e)));
+        }
+
+        bytes_downloaded += bytes_read as u64;
+
+        // Emit progress
+        let _ = app.emit(
+            "download-progress",
+            DownloadProgress {
+                download_id: download_id.clone(),
+                bytes_downloaded,
+                total_bytes,
+            },
+        );
+    }
+
+    // Flush and sync
+    if let Err(e) = file.sync_all().await {
+        let _ = app.emit(
+            "download-failed",
+            DownloadFailed {
+                download_id,
+                error: format!("Sync error: {}", e),
+            },
+        );
+        return Err(AppError::InvalidInput(format!("Sync error: {}", e)));
+    }
+
+    let final_path = dest_path.to_string_lossy().to_string();
+
+    // Emit completed event
+    let _ = app.emit(
+        "download-completed",
+        DownloadCompleted {
+            download_id,
+            key,
+            path: final_path.clone(),
+        },
+    );
+
+    Ok(final_path)
+}
+
+/// Search for objects recursively within a prefix
+#[tauri::command(rename_all = "camelCase")]
+pub async fn search_objects(
+    credentials: State<'_, CredentialsManager>,
+    s3_clients: State<'_, S3ClientManager>,
+    account_id: String,
+    bucket: String,
+    prefix: String,
+    query: String,
+    max_results: Option<u32>,
+) -> Result<Vec<S3Object>, AppError> {
+    if query.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let account = credentials.get_account(&account_id)?;
+    let secret = credentials.get_secret_key(&account_id)?;
+
+    let client = s3_clients
+        .get_or_create_client(&account_id, &account.endpoint, &account.access_key_id, &secret)
+        .await?;
+
+    let max = max_results.unwrap_or(100) as usize;
+    let query_lower = query.to_lowercase();
+    let mut results: Vec<S3Object> = Vec::new();
+    let mut continuation_token: Option<String> = None;
+
+    // List all objects recursively (no delimiter) and filter by query
+    loop {
+        let mut request = client.list_objects_v2().bucket(&bucket);
+
+        if !prefix.is_empty() {
+            request = request.prefix(&prefix);
+        }
+
+        if let Some(token) = &continuation_token {
+            request = request.continuation_token(token);
+        }
+
+        let response = request.send().await?;
+
+        for obj in response.contents() {
+            if let Some(key) = obj.key() {
+                // Get the file name from the key
+                let name = key.rsplit('/').next().unwrap_or(key);
+
+                // Case-insensitive search
+                if name.to_lowercase().contains(&query_lower) {
+                    results.push(S3Object {
+                        key: key.to_string(),
+                        size: obj.size().unwrap_or(0),
+                        last_modified: obj.last_modified().map(|d| d.to_string()),
+                        etag: obj.e_tag().map(|e| e.trim_matches('"').to_string()),
+                        is_folder: key.ends_with('/'),
+                    });
+
+                    if results.len() >= max {
+                        return Ok(results);
+                    }
+                }
+            }
+        }
+
+        if response.is_truncated() == Some(true) {
+            continuation_token = response.next_continuation_token().map(|s| s.to_string());
+        } else {
+            break;
+        }
+    }
+
+    Ok(results)
+}

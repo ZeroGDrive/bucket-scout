@@ -54,10 +54,7 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div
-        className="fixed inset-0 bg-black/50"
-        onClick={() => onOpenChange(false)}
-      />
+      <div className="fixed inset-0 bg-black/50" onClick={() => onOpenChange(false)} />
       <div className="relative bg-background border rounded-lg shadow-lg w-full max-w-md p-6">
         <h2 className="text-lg font-semibold mb-4">Add R2 Account</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -79,9 +76,7 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
               value={accountId}
               onChange={(e) => setAccountId(e.target.value)}
             />
-            <p className="text-xs text-muted-foreground">
-              Found in your Cloudflare dashboard URL
-            </p>
+            <p className="text-xs text-muted-foreground">Found in your Cloudflare dashboard URL</p>
           </div>
 
           <div className="space-y-2">
@@ -106,17 +101,11 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
           </div>
 
           <div className="flex justify-end gap-2 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={addAccount.isPending}>
-              {addAccount.isPending && (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              )}
+              {addAccount.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Add Account
             </Button>
           </div>

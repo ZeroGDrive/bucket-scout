@@ -1,9 +1,4 @@
-import {
-  useQuery,
-  useInfiniteQuery,
-  useMutation,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { credentials, buckets, objects, preview } from "./tauri";
 import type { Account } from "./types";
 
@@ -14,6 +9,8 @@ export const queryKeys = {
   buckets: (accountId: string) => ["buckets", accountId] as const,
   objects: (accountId: string, bucket: string, prefix: string) =>
     ["objects", accountId, bucket, prefix] as const,
+  search: (accountId: string, bucket: string, prefix: string, query: string) =>
+    ["search", accountId, bucket, prefix, query] as const,
   preview: (accountId: string, bucket: string, key: string) =>
     ["preview", accountId, bucket, key] as const,
   thumbnail: (accountId: string, bucket: string, key: string) =>
@@ -81,11 +78,7 @@ export function useBuckets(accountId: string | null) {
 }
 
 // Object queries with pagination
-export function useObjects(
-  accountId: string | null,
-  bucket: string | null,
-  prefix: string
-) {
+export function useObjects(accountId: string | null, bucket: string | null, prefix: string) {
   return useInfiniteQuery({
     queryKey: queryKeys.objects(accountId || "", bucket || "", prefix),
     queryFn: ({ pageParam }) =>
@@ -95,19 +88,14 @@ export function useObjects(
         prefix: prefix || undefined,
         continuationToken: pageParam,
       }),
-    getNextPageParam: (lastPage) =>
-      lastPage.isTruncated ? lastPage.continuationToken : undefined,
+    getNextPageParam: (lastPage) => (lastPage.isTruncated ? lastPage.continuationToken : undefined),
     initialPageParam: undefined as string | undefined,
     enabled: !!accountId && !!bucket,
   });
 }
 
 // Preview query
-export function usePreview(
-  accountId: string | null,
-  bucket: string | null,
-  key: string | null
-) {
+export function usePreview(accountId: string | null, bucket: string | null, key: string | null) {
   return useQuery({
     queryKey: queryKeys.preview(accountId || "", bucket || "", key || ""),
     queryFn: () =>
@@ -126,7 +114,7 @@ export function useThumbnail(
   accountId: string | null,
   bucket: string | null,
   key: string | null,
-  enabled = true
+  enabled = true,
 ) {
   return useQuery({
     queryKey: queryKeys.thumbnail(accountId || "", bucket || "", key || ""),
@@ -156,5 +144,48 @@ export function useDeleteObjects() {
         queryKey: ["objects", variables.accountId, variables.bucket],
       });
     },
+  });
+}
+
+// Create folder mutation
+export function useCreateFolder() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (params: {
+      accountId: string;
+      bucket: string;
+      prefix: string;
+      folderName: string;
+    }) => objects.createFolder(params),
+    onSuccess: (_, variables) => {
+      // Invalidate all object queries for this bucket to refresh the list
+      queryClient.invalidateQueries({
+        queryKey: ["objects", variables.accountId, variables.bucket],
+      });
+    },
+  });
+}
+
+// Search objects query (for recursive search)
+export function useSearchObjects(
+  accountId: string | null,
+  bucket: string | null,
+  prefix: string,
+  query: string,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: queryKeys.search(accountId || "", bucket || "", prefix, query),
+    queryFn: () =>
+      objects.search({
+        accountId: accountId!,
+        bucket: bucket!,
+        prefix,
+        query,
+        maxResults: 100,
+      }),
+    enabled: enabled && !!accountId && !!bucket && query.length >= 2,
+    staleTime: 30_000, // 30 seconds
   });
 }

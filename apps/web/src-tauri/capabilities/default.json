@@ -9,6 +9,7 @@
     "fs:default",
     "fs:allow-write-file",
     "fs:allow-remove",
+    "fs:allow-stat",
     "fs:scope-temp-recursive",
     "fs:allow-temp-write-recursive"
   ]
