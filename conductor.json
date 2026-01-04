@@ -1,0 +1,7 @@
+{
+  "scripts": {
+    "setup": "bun install",
+    "run": "cd apps/web && bun run desktop:dev"
+  },
+  "runScriptMode": "nonconcurrent"
+}
