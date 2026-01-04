@@ -34,6 +34,8 @@ pub fn run() {
             commands::objects::generate_presigned_url,
             commands::objects::rename_object,
             commands::objects::copy_objects,
+            commands::objects::copy_objects_across_buckets,
+            commands::objects::download_folder,
             // Preview commands
             commands::preview::get_preview,
             commands::preview::get_thumbnail,

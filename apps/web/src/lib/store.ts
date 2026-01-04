@@ -3,6 +3,8 @@ import { persist } from "zustand/middleware";
 import type { ClipboardState } from "./types";
 
 export type ViewMode = "grid" | "list";
+export type SortBy = "name" | "size" | "modified";
+export type SortDirection = "asc" | "desc";
 
 interface BrowserState {
   // Selection state
@@ -18,6 +20,10 @@ interface BrowserState {
   // Search state
   searchQuery: string;
   searchRecursive: boolean; // Toggle for recursive search
+
+  // Sort state
+  sortBy: SortBy;
+  sortDirection: SortDirection;
 
   // UI state
   viewMode: ViewMode;
@@ -45,9 +51,14 @@ interface BrowserState {
   setSearchRecursive: (recursive: boolean) => void;
   clearSearch: () => void;
 
+  // Sort actions
+  setSortBy: (sortBy: SortBy) => void;
+  setSortDirection: (direction: SortDirection) => void;
+  toggleSort: (column: SortBy) => void;
+
   // Clipboard actions
-  copyToClipboard: (keys: string[], bucket: string) => void;
-  cutToClipboard: (keys: string[], bucket: string) => void;
+  copyToClipboard: (keys: string[], bucket: string, accountId: string) => void;
+  cutToClipboard: (keys: string[], bucket: string, accountId: string) => void;
   clearClipboard: () => void;
 }
 
@@ -63,6 +74,8 @@ export const useBrowserStore = create<BrowserState>()(
       clipboard: null,
       searchQuery: "",
       searchRecursive: true,
+      sortBy: "name",
+      sortDirection: "asc",
       viewMode: "list",
       sidebarWidth: 240,
       previewPanelOpen: true,
@@ -215,10 +228,26 @@ export const useBrowserStore = create<BrowserState>()(
 
       clearSearch: () => set({ searchQuery: "" }),
 
-      // Clipboard actions
-      copyToClipboard: (keys, bucket) => set({ clipboard: { keys, bucket, operation: "copy" } }),
+      // Sort actions
+      setSortBy: (sortBy) => set({ sortBy }),
+      setSortDirection: (direction) => set({ sortDirection: direction }),
+      toggleSort: (column) => {
+        const { sortBy, sortDirection } = get();
+        if (sortBy === column) {
+          // Toggle direction if same column
+          set({ sortDirection: sortDirection === "asc" ? "desc" : "asc" });
+        } else {
+          // New column, default to ascending
+          set({ sortBy: column, sortDirection: "asc" });
+        }
+      },
 
-      cutToClipboard: (keys, bucket) => set({ clipboard: { keys, bucket, operation: "cut" } }),
+      // Clipboard actions
+      copyToClipboard: (keys, bucket, accountId) =>
+        set({ clipboard: { keys, bucket, accountId, operation: "copy" } }),
+
+      cutToClipboard: (keys, bucket, accountId) =>
+        set({ clipboard: { keys, bucket, accountId, operation: "cut" } }),
 
       clearClipboard: () => set({ clipboard: null }),
     }),
@@ -228,6 +257,8 @@ export const useBrowserStore = create<BrowserState>()(
         viewMode: state.viewMode,
         sidebarWidth: state.sidebarWidth,
         previewPanelOpen: state.previewPanelOpen,
+        sortBy: state.sortBy,
+        sortDirection: state.sortDirection,
       }),
     },
   ),
@@ -251,3 +282,7 @@ export const useSearchRecursive = () => useBrowserStore((state) => state.searchR
 
 // Clipboard selector
 export const useClipboard = () => useBrowserStore((state) => state.clipboard);
+
+// Sort selectors
+export const useSortBy = () => useBrowserStore((state) => state.sortBy);
+export const useSortDirection = () => useBrowserStore((state) => state.sortDirection);

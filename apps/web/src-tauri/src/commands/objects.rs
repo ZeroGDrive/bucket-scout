@@ -4,6 +4,7 @@ use crate::s3::client::S3ClientManager;
 use aws_sdk_s3::presigning::PresigningConfig;
 use aws_sdk_s3::types::ObjectIdentifier;
 use serde::Serialize;
+use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -119,12 +120,24 @@ pub async fn get_object_metadata(
 
     let response = client.head_object().bucket(&bucket).key(&key).send().await?;
 
+    // Convert user metadata to HashMap
+    let metadata = response.metadata().map(|m| {
+        m.iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect::<std::collections::HashMap<String, String>>()
+    });
+
     Ok(ObjectMetadata {
         key: key.clone(),
         size: response.content_length().unwrap_or(0),
         content_type: response.content_type().map(|s| s.to_string()),
         last_modified: response.last_modified().map(|d| d.to_string()),
         etag: response.e_tag().map(|e| e.trim_matches('"').to_string()),
+        storage_class: response.storage_class().map(|s| s.as_str().to_string()),
+        content_encoding: response.content_encoding().map(|s| s.to_string()),
+        cache_control: response.cache_control().map(|s| s.to_string()),
+        version_id: response.version_id().map(|s| s.to_string()),
+        metadata,
     })
 }
 
@@ -136,6 +149,11 @@ pub struct ObjectMetadata {
     pub content_type: Option<String>,
     pub last_modified: Option<String>,
     pub etag: Option<String>,
+    pub storage_class: Option<String>,
+    pub content_encoding: Option<String>,
+    pub cache_control: Option<String>,
+    pub version_id: Option<String>,
+    pub metadata: Option<std::collections::HashMap<String, String>>,
 }
 
 // Upload event types for progress tracking (using global events)
@@ -1209,4 +1227,421 @@ pub async fn copy_objects(
         objects_deleted,
         errors,
     })
+}
+
+/// Copy or move objects across buckets (same or different accounts)
+#[tauri::command(rename_all = "camelCase")]
+pub async fn copy_objects_across_buckets(
+    credentials: State<'_, CredentialsManager>,
+    s3_clients: State<'_, S3ClientManager>,
+    source_account_id: String,
+    source_bucket: String,
+    dest_account_id: String,
+    dest_bucket: String,
+    source_keys: Vec<String>,
+    destination_prefix: String,
+    delete_source: bool,
+) -> Result<CopyMoveResult, AppError> {
+    let source_account = credentials.get_account(&source_account_id)?;
+    let source_secret = credentials.get_secret_key(&source_account_id)?;
+    let source_client = s3_clients
+        .get_or_create_client(
+            &source_account_id,
+            &source_account.endpoint,
+            &source_account.access_key_id,
+            &source_secret,
+        )
+        .await?;
+
+    let dest_account = credentials.get_account(&dest_account_id)?;
+    let dest_secret = credentials.get_secret_key(&dest_account_id)?;
+    let dest_client = s3_clients
+        .get_or_create_client(
+            &dest_account_id,
+            &dest_account.endpoint,
+            &dest_account.access_key_id,
+            &dest_secret,
+        )
+        .await?;
+
+    let mut objects_copied = 0;
+    let mut objects_deleted = 0;
+    let mut errors: Vec<CopyMoveError> = Vec::new();
+
+    // Check if same account and bucket - can use S3 copy
+    let same_account = source_account_id == dest_account_id;
+    let same_bucket = source_bucket == dest_bucket;
+
+    for source_key in &source_keys {
+        let is_folder = source_key.ends_with('/');
+
+        if is_folder {
+            // For folders, copy all objects recursively
+            let mut continuation_token: Option<String> = None;
+
+            loop {
+                let mut request = source_client
+                    .list_objects_v2()
+                    .bucket(&source_bucket)
+                    .prefix(source_key);
+
+                if let Some(token) = &continuation_token {
+                    request = request.continuation_token(token);
+                }
+
+                let response = match request.send().await {
+                    Ok(r) => r,
+                    Err(e) => {
+                        errors.push(CopyMoveError {
+                            source_key: source_key.clone(),
+                            error: format!("Failed to list folder: {:?}", e),
+                        });
+                        break;
+                    }
+                };
+
+                for obj in response.contents() {
+                    if let Some(obj_key) = obj.key() {
+                        // Get the relative path within the folder
+                        let folder_name = source_key
+                            .trim_end_matches('/')
+                            .split('/')
+                            .last()
+                            .unwrap_or("");
+                        let relative_path = obj_key.strip_prefix(source_key).unwrap_or(obj_key);
+                        let dest_key =
+                            format!("{}{}/{}", destination_prefix, folder_name, relative_path);
+
+                        let result = if same_account {
+                            // Same account: use S3 copy
+                            let copy_source = format!(
+                                "{}/{}",
+                                source_bucket,
+                                urlencoding::encode(obj_key)
+                            );
+                            dest_client
+                                .copy_object()
+                                .bucket(&dest_bucket)
+                                .key(&dest_key)
+                                .copy_source(&copy_source)
+                                .send()
+                                .await
+                                .map(|_| ())
+                                .map_err(|e| format!("{:?}", e))
+                        } else {
+                            // Different accounts: download and upload
+                            copy_via_download_upload(
+                                &source_client,
+                                &dest_client,
+                                &source_bucket,
+                                &dest_bucket,
+                                obj_key,
+                                &dest_key,
+                            )
+                            .await
+                        };
+
+                        match result {
+                            Ok(_) => {
+                                objects_copied += 1;
+
+                                // Delete source if moving
+                                if delete_source {
+                                    match source_client
+                                        .delete_object()
+                                        .bucket(&source_bucket)
+                                        .key(obj_key)
+                                        .send()
+                                        .await
+                                    {
+                                        Ok(_) => objects_deleted += 1,
+                                        Err(e) => errors.push(CopyMoveError {
+                                            source_key: obj_key.to_string(),
+                                            error: format!("Failed to delete: {:?}", e),
+                                        }),
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                errors.push(CopyMoveError {
+                                    source_key: obj_key.to_string(),
+                                    error: format!("Failed to copy: {}", e),
+                                });
+                            }
+                        }
+                    }
+                }
+
+                if response.is_truncated() == Some(true) {
+                    continuation_token = response.next_continuation_token().map(|s| s.to_string());
+                } else {
+                    break;
+                }
+            }
+        } else {
+            // For single files
+            let file_name = source_key.split('/').last().unwrap_or(source_key);
+            let dest_key = format!("{}{}", destination_prefix, file_name);
+
+            let result = if same_account {
+                // Same account: use S3 copy
+                let copy_source = format!(
+                    "{}/{}",
+                    source_bucket,
+                    urlencoding::encode(source_key)
+                );
+                dest_client
+                    .copy_object()
+                    .bucket(&dest_bucket)
+                    .key(&dest_key)
+                    .copy_source(&copy_source)
+                    .send()
+                    .await
+                    .map(|_| ())
+                    .map_err(|e| format!("{:?}", e))
+            } else {
+                // Different accounts: download and upload
+                copy_via_download_upload(
+                    &source_client,
+                    &dest_client,
+                    &source_bucket,
+                    &dest_bucket,
+                    source_key,
+                    &dest_key,
+                )
+                .await
+            };
+
+            match result {
+                Ok(_) => {
+                    objects_copied += 1;
+
+                    // Delete source if moving
+                    if delete_source {
+                        match source_client
+                            .delete_object()
+                            .bucket(&source_bucket)
+                            .key(source_key)
+                            .send()
+                            .await
+                        {
+                            Ok(_) => objects_deleted += 1,
+                            Err(e) => errors.push(CopyMoveError {
+                                source_key: source_key.clone(),
+                                error: format!("Failed to delete: {:?}", e),
+                            }),
+                        }
+                    }
+                }
+                Err(e) => {
+                    errors.push(CopyMoveError {
+                        source_key: source_key.clone(),
+                        error: format!("Failed to copy: {}", e),
+                    });
+                }
+            }
+        }
+    }
+
+    Ok(CopyMoveResult {
+        objects_copied,
+        objects_deleted,
+        errors,
+    })
+}
+
+/// Helper function to copy an object by downloading from source and uploading to destination
+async fn copy_via_download_upload(
+    source_client: &aws_sdk_s3::Client,
+    dest_client: &aws_sdk_s3::Client,
+    source_bucket: &str,
+    dest_bucket: &str,
+    source_key: &str,
+    dest_key: &str,
+) -> Result<(), String> {
+    // Download from source
+    let response = source_client
+        .get_object()
+        .bucket(source_bucket)
+        .key(source_key)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to download: {:?}", e))?;
+
+    let content_type = response
+        .content_type()
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| "application/octet-stream".to_string());
+
+    let body = response
+        .body
+        .collect()
+        .await
+        .map_err(|e| format!("Failed to read body: {:?}", e))?;
+
+    // Upload to destination
+    dest_client
+        .put_object()
+        .bucket(dest_bucket)
+        .key(dest_key)
+        .body(aws_sdk_s3::primitives::ByteStream::from(body.into_bytes()))
+        .content_type(&content_type)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to upload: {:?}", e))?;
+
+    Ok(())
+}
+
+// Folder download event types
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FolderDownloadProgress {
+    pub download_id: String,
+    pub files_processed: usize,
+    pub total_files: usize,
+    pub bytes_downloaded: u64,
+}
+
+/// Download a folder as a ZIP file
+#[tauri::command(rename_all = "camelCase")]
+pub async fn download_folder(
+    app: AppHandle,
+    credentials: State<'_, CredentialsManager>,
+    s3_clients: State<'_, S3ClientManager>,
+    account_id: String,
+    bucket: String,
+    prefix: String,
+    destination: String,
+    download_id: String,
+) -> Result<String, AppError> {
+    let account = credentials.get_account(&account_id)?;
+    let secret = credentials.get_secret_key(&account_id)?;
+
+    let client = s3_clients
+        .get_or_create_client(&account_id, &account.endpoint, &account.access_key_id, &secret)
+        .await?;
+
+    // List all objects with this prefix
+    let mut all_objects: Vec<(String, i64)> = Vec::new();
+    let mut continuation_token: Option<String> = None;
+
+    loop {
+        let mut request = client.list_objects_v2().bucket(&bucket).prefix(&prefix);
+
+        if let Some(token) = &continuation_token {
+            request = request.continuation_token(token);
+        }
+
+        let response = request.send().await?;
+
+        for obj in response.contents() {
+            if let Some(key) = obj.key() {
+                // Skip folder markers (keys ending with /)
+                if !key.ends_with('/') {
+                    all_objects.push((key.to_string(), obj.size().unwrap_or(0)));
+                }
+            }
+        }
+
+        if response.is_truncated() == Some(true) {
+            continuation_token = response.next_continuation_token().map(|s| s.to_string());
+        } else {
+            break;
+        }
+    }
+
+    if all_objects.is_empty() {
+        return Err(AppError::InvalidInput("Folder is empty".into()));
+    }
+
+    let total_files = all_objects.len();
+
+    // Create ZIP file name from folder name
+    let folder_name = prefix
+        .trim_end_matches('/')
+        .split('/')
+        .last()
+        .unwrap_or("folder");
+    let zip_filename = format!("{}.zip", folder_name);
+    let zip_path = PathBuf::from(&destination).join(&zip_filename);
+
+    // Create the ZIP file
+    let zip_file = std::fs::File::create(&zip_path)
+        .map_err(|e| AppError::InvalidInput(format!("Failed to create ZIP file: {}", e)))?;
+    let mut zip = zip::ZipWriter::new(zip_file);
+
+    let options = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated)
+        .compression_level(Some(6));
+
+    let mut files_processed = 0usize;
+    let mut bytes_downloaded = 0u64;
+
+    for (object_key, _size) in &all_objects {
+        // Get the object from S3
+        let response = match client.get_object().bucket(&bucket).key(object_key).send().await {
+            Ok(r) => r,
+            Err(e) => {
+                // Log error but continue with other files
+                log::warn!("Failed to download {}: {:?}", object_key, e);
+                continue;
+            }
+        };
+
+        let body = match response.body.collect().await {
+            Ok(b) => b.into_bytes(),
+            Err(e) => {
+                log::warn!("Failed to read body for {}: {:?}", object_key, e);
+                continue;
+            }
+        };
+
+        bytes_downloaded += body.len() as u64;
+
+        // Calculate path within ZIP (strip the prefix)
+        let relative_path = object_key.strip_prefix(&prefix).unwrap_or(object_key);
+
+        // Add file to ZIP
+        if let Err(e) = zip.start_file(relative_path, options) {
+            log::warn!("Failed to start file in ZIP {}: {:?}", relative_path, e);
+            continue;
+        }
+
+        if let Err(e) = zip.write_all(&body) {
+            log::warn!("Failed to write to ZIP {}: {:?}", relative_path, e);
+            continue;
+        }
+
+        files_processed += 1;
+
+        // Emit progress
+        let _ = app.emit(
+            "folder-download-progress",
+            FolderDownloadProgress {
+                download_id: download_id.clone(),
+                files_processed,
+                total_files,
+                bytes_downloaded,
+            },
+        );
+    }
+
+    // Finalize ZIP
+    zip.finish()
+        .map_err(|e| AppError::InvalidInput(format!("Failed to finalize ZIP: {}", e)))?;
+
+    let final_path = zip_path.to_string_lossy().to_string();
+
+    // Emit completed
+    let _ = app.emit(
+        "download-completed",
+        DownloadCompleted {
+            download_id,
+            key: prefix,
+            path: final_path.clone(),
+        },
+    );
+
+    Ok(final_path)
 }

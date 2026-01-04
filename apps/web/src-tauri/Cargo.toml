@@ -55,3 +55,6 @@ urlencoding = "2"
 
 # File system access
 tauri-plugin-fs = "2"
+
+# ZIP file creation
+zip = { version = "2", default-features = false, features = ["deflate"] }

@@ -8,12 +8,14 @@ import {
   FileCode,
   ChevronRight,
   FolderOpen,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { Image } from "@unpic/react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { useBrowserStore, useCurrentPrefix, useClipboard } from "@/lib/store";
+import { useBrowserStore, useCurrentPrefix, useClipboard, type SortBy } from "@/lib/store";
 import {
   useObjects,
   useThumbnail,
@@ -22,10 +24,12 @@ import {
   useCreateFolder,
   useRenameObject,
   useCopyMoveObjects,
+  useCopyMoveObjectsAcrossBuckets,
 } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 import type { FileItem } from "@/lib/types";
 import { Loader2, SearchX } from "lucide-react";
+import { useDownloadManager } from "@/hooks/use-download-manager";
 import { FileContextMenu } from "./file-context-menu";
 import { EmptyAreaContextMenu } from "./empty-area-context-menu";
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog";
@@ -161,6 +165,9 @@ export function FileExplorer() {
   const viewMode = useBrowserStore((s) => s.viewMode);
   const searchQuery = useBrowserStore((s) => s.searchQuery);
   const searchRecursive = useBrowserStore((s) => s.searchRecursive);
+  const sortBy = useBrowserStore((s) => s.sortBy);
+  const sortDirection = useBrowserStore((s) => s.sortDirection);
+  const toggleSort = useBrowserStore((s) => s.toggleSort);
 
   const navigateTo = useBrowserStore((s) => s.navigateTo);
   const selectFile = useBrowserStore((s) => s.selectFile);
@@ -197,6 +204,8 @@ export function FileExplorer() {
   const createFolder = useCreateFolder();
   const renameObject = useRenameObject();
   const copyMoveObjects = useCopyMoveObjects();
+  const copyMoveObjectsAcrossBuckets = useCopyMoveObjectsAcrossBuckets();
+  const { queueDownloads, queueFolderDownload } = useDownloadManager();
 
   // Context menu state
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -250,12 +259,33 @@ export function FileExplorer() {
       }
     }
 
-    // Sort: folders first, then files, both alphabetically
+    // Sort function based on sortBy and sortDirection
+    const sortItems = (items: FileItem[]): FileItem[] => {
+      const multiplier = sortDirection === "asc" ? 1 : -1;
+
+      return [...items].sort((a, b) => {
+        switch (sortBy) {
+          case "name":
+            return multiplier * a.name.localeCompare(b.name);
+          case "size":
+            return multiplier * (a.size - b.size);
+          case "modified": {
+            const dateA = a.lastModified ? new Date(a.lastModified).getTime() : 0;
+            const dateB = b.lastModified ? new Date(b.lastModified).getTime() : 0;
+            return multiplier * (dateA - dateB);
+          }
+          default:
+            return 0;
+        }
+      });
+    };
+
+    // Folders always stay at top, sorted by name only, then files sorted by selected column
     return [
       ...allFolders.sort((a, b) => a.name.localeCompare(b.name)),
-      ...allFiles.sort((a, b) => a.name.localeCompare(b.name)),
+      ...sortItems(allFiles),
     ];
-  }, [data?.pages, prefix]);
+  }, [data?.pages, prefix, sortBy, sortDirection]);
 
   // Transform search results to FileItems (for recursive search)
   const searchItems: FileItem[] = useMemo(() => {
@@ -506,18 +536,18 @@ export function FileExplorer() {
 
   // Copy/Cut handlers
   const handleCopy = useCallback(() => {
-    if (selectedBucket && selectedFileKeys.length > 0) {
-      copyToClipboard(selectedFileKeys, selectedBucket);
+    if (selectedAccountId && selectedBucket && selectedFileKeys.length > 0) {
+      copyToClipboard(selectedFileKeys, selectedBucket, selectedAccountId);
       toast.success(`Copied ${selectedFileKeys.length} item(s) to clipboard`);
     }
-  }, [selectedBucket, selectedFileKeys, copyToClipboard]);
+  }, [selectedAccountId, selectedBucket, selectedFileKeys, copyToClipboard]);
 
   const handleCut = useCallback(() => {
-    if (selectedBucket && selectedFileKeys.length > 0) {
-      cutToClipboard(selectedFileKeys, selectedBucket);
+    if (selectedAccountId && selectedBucket && selectedFileKeys.length > 0) {
+      cutToClipboard(selectedFileKeys, selectedBucket, selectedAccountId);
       toast.success(`Cut ${selectedFileKeys.length} item(s) to clipboard`);
     }
-  }, [selectedBucket, selectedFileKeys, cutToClipboard]);
+  }, [selectedAccountId, selectedBucket, selectedFileKeys, cutToClipboard]);
 
   // Paste handler
   const handlePaste = useCallback(() => {
@@ -525,41 +555,94 @@ export function FileExplorer() {
       return;
     }
 
-    // Only allow paste within same bucket for now
-    if (clipboard.bucket !== selectedBucket) {
-      toast.error("Cross-bucket paste not supported yet");
-      return;
-    }
-
     const deleteSource = clipboard.operation === "cut";
+    const isSameBucket =
+      clipboard.accountId === selectedAccountId && clipboard.bucket === selectedBucket;
+    const action = deleteSource ? "Moving" : "Copying";
+    const actionPast = deleteSource ? "Moved" : "Copied";
+    const itemCount = clipboard.keys.length;
 
-    copyMoveObjects.mutate(
-      {
-        accountId: selectedAccountId,
-        bucket: selectedBucket,
-        sourceKeys: clipboard.keys,
-        destinationPrefix: prefix,
-        deleteSource,
-      },
-      {
-        onSuccess: (result) => {
-          if (deleteSource) {
-            clearClipboard();
-          }
-          if (result.errors.length > 0) {
-            toast.error(
-              `${deleteSource ? "Moved" : "Copied"} ${result.objectsCopied} item(s), but ${result.errors.length} failed`,
-            );
-          } else {
-            toast.success(`${deleteSource ? "Moved" : "Copied"} ${result.objectsCopied} item(s)`);
-          }
-        },
-        onError: (error) => {
-          toast.error(`Failed to ${deleteSource ? "move" : "copy"}: ${error.message}`);
-        },
-      },
+    // Show loading toast
+    const toastId = toast.loading(
+      `${action} ${itemCount} item${itemCount > 1 ? "s" : ""}...`,
     );
-  }, [selectedAccountId, selectedBucket, clipboard, prefix, copyMoveObjects, clearClipboard]);
+
+    if (isSameBucket) {
+      // Same bucket: use existing copy_objects command
+      copyMoveObjects.mutate(
+        {
+          accountId: selectedAccountId,
+          bucket: selectedBucket,
+          sourceKeys: clipboard.keys,
+          destinationPrefix: prefix,
+          deleteSource,
+        },
+        {
+          onSuccess: (result) => {
+            if (deleteSource) {
+              clearClipboard();
+            }
+            if (result.errors.length > 0) {
+              toast.error(
+                `${actionPast} ${result.objectsCopied} item(s), but ${result.errors.length} failed`,
+                { id: toastId },
+              );
+            } else {
+              toast.success(`${actionPast} ${result.objectsCopied} item(s)`, { id: toastId });
+            }
+          },
+          onError: (error) => {
+            toast.error(`Failed to ${deleteSource ? "move" : "copy"}: ${error.message}`, {
+              id: toastId,
+            });
+          },
+        },
+      );
+    } else {
+      // Cross-bucket: use new cross-bucket command
+      copyMoveObjectsAcrossBuckets.mutate(
+        {
+          sourceAccountId: clipboard.accountId,
+          sourceBucket: clipboard.bucket,
+          destAccountId: selectedAccountId,
+          destBucket: selectedBucket,
+          sourceKeys: clipboard.keys,
+          destinationPrefix: prefix,
+          deleteSource,
+        },
+        {
+          onSuccess: (result) => {
+            if (deleteSource) {
+              clearClipboard();
+            }
+            if (result.errors.length > 0) {
+              toast.error(
+                `${actionPast} ${result.objectsCopied} item(s), but ${result.errors.length} failed`,
+                { id: toastId },
+              );
+            } else {
+              toast.success(`${actionPast} ${result.objectsCopied} item(s) across buckets`, {
+                id: toastId,
+              });
+            }
+          },
+          onError: (error) => {
+            toast.error(`Failed to ${deleteSource ? "move" : "copy"}: ${error.message}`, {
+              id: toastId,
+            });
+          },
+        },
+      );
+    }
+  }, [
+    selectedAccountId,
+    selectedBucket,
+    clipboard,
+    prefix,
+    copyMoveObjects,
+    copyMoveObjectsAcrossBuckets,
+    clearClipboard,
+  ]);
 
   // Share handler
   const handleShareRequest = useCallback(() => {
@@ -569,6 +652,22 @@ export function FileExplorer() {
       setShareDialogOpen(true);
     }
   }, [selectedItems]);
+
+  // Download handler
+  const handleDownload = useCallback(() => {
+    // Download files directly
+    const fileKeys = selectedItems.filter((item) => !item.isFolder).map((item) => item.key);
+    if (fileKeys.length > 0) {
+      queueDownloads(fileKeys);
+      toast.success(`Downloading ${fileKeys.length} file(s)`);
+    }
+
+    // Download folders as ZIP
+    const folderKeys = selectedItems.filter((item) => item.isFolder).map((item) => item.key);
+    for (const folderKey of folderKeys) {
+      queueFolderDownload(folderKey);
+    }
+  }, [selectedItems, queueDownloads, queueFolderDownload]);
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -740,6 +839,7 @@ export function FileExplorer() {
             onCopy={handleCopy}
             onCut={handleCut}
             onShare={handleShareRequest}
+            onDownload={handleDownload}
             selectedCount={selectedFileKeys.length}
             isFolder={selectedItems[0]?.isFolder ?? false}
           />
@@ -751,7 +851,7 @@ export function FileExplorer() {
             onClose={handleCloseEmptyAreaContextMenu}
             onCreateFolder={handleCreateFolderRequest}
             onPaste={handlePaste}
-            hasClipboard={!!clipboard && clipboard.bucket === selectedBucket}
+            hasClipboard={!!clipboard}
             clipboardOperation={clipboard?.operation}
             clipboardCount={clipboard?.keys.length}
           />
@@ -804,13 +904,52 @@ export function FileExplorer() {
           <thead className="sticky top-0 bg-background/95 backdrop-blur-sm border-b z-10">
             <tr className="text-left">
               <th className="px-4 py-2.5 font-medium text-xs uppercase tracking-wider text-muted-foreground">
-                Name
+                <button
+                  type="button"
+                  onClick={() => toggleSort("name")}
+                  className="flex items-center gap-1 hover:text-foreground transition-colors"
+                >
+                  Name
+                  {sortBy === "name" && (
+                    sortDirection === "asc" ? (
+                      <ArrowUp className="h-3 w-3" />
+                    ) : (
+                      <ArrowDown className="h-3 w-3" />
+                    )
+                  )}
+                </button>
               </th>
               <th className="px-4 py-2.5 font-medium text-xs uppercase tracking-wider text-muted-foreground w-24 text-right">
-                Size
+                <button
+                  type="button"
+                  onClick={() => toggleSort("size")}
+                  className="flex items-center gap-1 ml-auto hover:text-foreground transition-colors"
+                >
+                  Size
+                  {sortBy === "size" && (
+                    sortDirection === "asc" ? (
+                      <ArrowUp className="h-3 w-3" />
+                    ) : (
+                      <ArrowDown className="h-3 w-3" />
+                    )
+                  )}
+                </button>
               </th>
               <th className="px-4 py-2.5 font-medium text-xs uppercase tracking-wider text-muted-foreground w-44 text-right whitespace-nowrap">
-                Modified
+                <button
+                  type="button"
+                  onClick={() => toggleSort("modified")}
+                  className="flex items-center gap-1 ml-auto hover:text-foreground transition-colors"
+                >
+                  Modified
+                  {sortBy === "modified" && (
+                    sortDirection === "asc" ? (
+                      <ArrowUp className="h-3 w-3" />
+                    ) : (
+                      <ArrowDown className="h-3 w-3" />
+                    )
+                  )}
+                </button>
               </th>
             </tr>
           </thead>
@@ -882,6 +1021,7 @@ export function FileExplorer() {
           onCopy={handleCopy}
           onCut={handleCut}
           onShare={handleShareRequest}
+          onDownload={handleDownload}
           selectedCount={selectedFileKeys.length}
           isFolder={selectedItems[0]?.isFolder ?? false}
         />
