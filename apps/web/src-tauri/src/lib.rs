@@ -10,6 +10,7 @@ use s3::client::S3ClientManager;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::new().build())
+        .plugin(tauri_plugin_fs::init())
         .manage(CredentialsManager::new())
         .manage(S3ClientManager::new())
         .invoke_handler(tauri::generate_handler![
@@ -25,6 +26,7 @@ pub fn run() {
             // Object commands
             commands::objects::list_objects,
             commands::objects::get_object_metadata,
+            commands::objects::upload_object,
             // Preview commands
             commands::preview::get_preview,
             commands::preview::get_thumbnail,

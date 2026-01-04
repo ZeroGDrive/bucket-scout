@@ -81,6 +81,23 @@ export const objects = {
       bucket: params.bucket,
       key: params.key,
     }),
+
+  upload: (params: {
+    accountId: string;
+    bucket: string;
+    filePath: string;
+    key: string;
+    contentType?: string;
+    uploadId: string;
+  }) =>
+    invoke<void>("upload_object", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+      filePath: params.filePath,
+      key: params.key,
+      contentType: params.contentType,
+      uploadId: params.uploadId,
+    }),
 };
 
 // Preview commands

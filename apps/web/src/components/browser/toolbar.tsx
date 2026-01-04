@@ -12,6 +12,7 @@ import { useBrowserStore, useCurrentPath } from "@/lib/store";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queries";
 import { cn } from "@/lib/utils";
+import { UploadButton } from "./upload-button";
 
 export function Toolbar() {
   const queryClient = useQueryClient();
@@ -96,6 +97,10 @@ export function Toolbar() {
       </div>
 
       <div className="flex items-center gap-0.5">
+        <UploadButton />
+
+        <Separator orientation="vertical" className="h-5 mx-1.5" />
+
         <Button
           variant="ghost"
           size="icon-sm"

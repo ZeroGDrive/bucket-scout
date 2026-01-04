@@ -63,3 +63,48 @@ export interface ThumbnailData {
   width: number;
   height: number;
 }
+
+// Upload types
+export type UploadStatus =
+  | "pending"
+  | "uploading"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
+export interface UploadItem {
+  id: string;
+  file: File;
+  key: string;
+  status: UploadStatus;
+  progress: number;
+  bytesUploaded: number;
+  totalBytes: number;
+  error?: string;
+  startedAt?: number;
+  completedAt?: number;
+}
+
+// Upload event payloads (used with Tauri global events)
+export interface UploadStartedPayload {
+  uploadId: string;
+  fileName: string;
+  totalBytes: number;
+}
+
+export interface UploadProgressPayload {
+  uploadId: string;
+  bytesUploaded: number;
+  totalBytes: number;
+}
+
+export interface UploadCompletedPayload {
+  uploadId: string;
+  key: string;
+  etag?: string;
+}
+
+export interface UploadFailedPayload {
+  uploadId: string;
+  error: string;
+}

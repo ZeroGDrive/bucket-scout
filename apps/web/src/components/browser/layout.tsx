@@ -7,6 +7,8 @@ import { AppSidebar } from "./app-sidebar";
 import { FileExplorer } from "./file-explorer";
 import { PreviewPanel } from "./preview-panel";
 import { Toolbar } from "./toolbar";
+import { DropZone } from "./drop-zone";
+import { UploadToast } from "./upload-toast";
 import {
   Sheet,
   SheetContent,
@@ -29,9 +31,9 @@ export function BrowserLayout() {
       <AppSidebar />
       <SidebarInset className="flex flex-col min-h-0 overflow-hidden">
         <Toolbar />
-        <div className="flex-1 min-h-0">
+        <DropZone className="flex-1 min-h-0">
           <FileExplorer />
-        </div>
+        </DropZone>
       </SidebarInset>
 
       <Sheet open={isPreviewOpen} onOpenChange={handleOpenChange}>
@@ -43,6 +45,8 @@ export function BrowserLayout() {
           <PreviewPanel />
         </SheetContent>
       </Sheet>
+
+      <UploadToast />
     </SidebarProvider>
   );
 }
