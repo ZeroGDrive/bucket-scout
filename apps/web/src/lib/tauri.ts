@@ -8,6 +8,9 @@ import type {
   ThumbnailData,
   DeleteResult,
   S3Object,
+  PresignedUrlResult,
+  RenameResult,
+  CopyMoveResult,
 } from "./types";
 
 // Credentials commands
@@ -147,6 +150,42 @@ export const objects = {
       key: params.key,
       destination: params.destination,
       downloadId: params.downloadId,
+    }),
+
+  generatePresignedUrl: (params: {
+    accountId: string;
+    bucket: string;
+    key: string;
+    expiresInSeconds: number;
+  }) =>
+    invoke<PresignedUrlResult>("generate_presigned_url", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+      key: params.key,
+      expiresInSeconds: params.expiresInSeconds,
+    }),
+
+  rename: (params: { accountId: string; bucket: string; oldKey: string; newName: string }) =>
+    invoke<RenameResult>("rename_object", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+      oldKey: params.oldKey,
+      newName: params.newName,
+    }),
+
+  copyObjects: (params: {
+    accountId: string;
+    bucket: string;
+    sourceKeys: string[];
+    destinationPrefix: string;
+    deleteSource: boolean;
+  }) =>
+    invoke<CopyMoveResult>("copy_objects", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+      sourceKeys: params.sourceKeys,
+      destinationPrefix: params.destinationPrefix,
+      deleteSource: params.deleteSource,
     }),
 };
 

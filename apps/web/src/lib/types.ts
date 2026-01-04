@@ -39,7 +39,40 @@ export type PreviewContent =
   | { type: "Text"; content: string; truncated: boolean }
   | { type: "Image"; base64: string; mimeType: string }
   | { type: "Json"; content: unknown }
+  | { type: "Pdf"; base64: string }
   | { type: "Unsupported"; message: string };
+
+// Presigned URL types
+export interface PresignedUrlResult {
+  url: string;
+  expiresAt: string;
+}
+
+// Rename types
+export interface RenameResult {
+  oldKey: string;
+  newKey: string;
+  objectsRenamed: number;
+}
+
+// Copy/Move types
+export interface CopyMoveResult {
+  objectsCopied: number;
+  objectsDeleted: number;
+  errors: CopyMoveError[];
+}
+
+export interface CopyMoveError {
+  sourceKey: string;
+  error: string;
+}
+
+// Clipboard state for copy/cut operations
+export interface ClipboardState {
+  keys: string[];
+  bucket: string;
+  operation: "copy" | "cut";
+}
 
 export interface PreviewData {
   contentType: string;

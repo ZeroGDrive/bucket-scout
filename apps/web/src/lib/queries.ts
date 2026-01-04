@@ -1,6 +1,5 @@
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { credentials, buckets, objects, preview } from "./tauri";
-import type { Account } from "./types";
 
 // Query keys
 export const queryKeys = {
@@ -187,5 +186,54 @@ export function useSearchObjects(
       }),
     enabled: enabled && !!accountId && !!bucket && query.length >= 2,
     staleTime: 30_000, // 30 seconds
+  });
+}
+
+// Generate presigned URL mutation
+export function useGeneratePresignedUrl() {
+  return useMutation({
+    mutationFn: (params: {
+      accountId: string;
+      bucket: string;
+      key: string;
+      expiresInSeconds: number;
+    }) => objects.generatePresignedUrl(params),
+  });
+}
+
+// Rename object mutation
+export function useRenameObject() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (params: { accountId: string; bucket: string; oldKey: string; newName: string }) =>
+      objects.rename(params),
+    onSuccess: (_, variables) => {
+      // Invalidate all object queries for this bucket to refresh the list
+      queryClient.invalidateQueries({
+        queryKey: ["objects", variables.accountId, variables.bucket],
+      });
+    },
+  });
+}
+
+// Copy/Move objects mutation
+export function useCopyMoveObjects() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (params: {
+      accountId: string;
+      bucket: string;
+      sourceKeys: string[];
+      destinationPrefix: string;
+      deleteSource: boolean;
+    }) => objects.copyObjects(params),
+    onSuccess: (_, variables) => {
+      // Invalidate all object queries for this bucket to refresh the list
+      queryClient.invalidateQueries({
+        queryKey: ["objects", variables.accountId, variables.bucket],
+      });
+    },
   });
 }

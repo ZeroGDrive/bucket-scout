@@ -8,6 +8,7 @@ use tauri::State;
 
 const MAX_PREVIEW_SIZE: i64 = 5 * 1024 * 1024; // 5MB default limit
 const MAX_TEXT_PREVIEW_SIZE: i64 = 1024 * 1024; // 1MB for text
+const MAX_PDF_SIZE: i64 = 20 * 1024 * 1024; // 20MB for PDFs
 const MAX_THUMBNAIL_SOURCE_SIZE: i64 = 10 * 1024 * 1024; // 10MB max source for thumbnails
 const DEFAULT_THUMBNAIL_SIZE: u32 = 200;
 
@@ -21,6 +22,7 @@ pub enum PreviewContent {
         mime_type: String,
     },
     Json { content: serde_json::Value },
+    Pdf { base64: String },
     Unsupported { message: String },
 }
 
@@ -67,8 +69,15 @@ fn get_content_type_from_extension(key: &str) -> Option<&'static str> {
         "java" => Some("text/x-java"),
         "sh" => Some("text/x-shellscript"),
 
+        // PDF
+        "pdf" => Some("application/pdf"),
+
         _ => None,
     }
+}
+
+fn is_pdf_content_type(content_type: &str) -> bool {
+    content_type == "application/pdf"
 }
 
 fn is_text_content_type(content_type: &str) -> bool {
@@ -120,7 +129,10 @@ pub async fn get_preview(
         .unwrap_or_else(|| "application/octet-stream".to_string());
 
     // Check if we can preview this type
-    if !is_text_content_type(&content_type) && !is_image_content_type(&content_type) {
+    if !is_text_content_type(&content_type)
+        && !is_image_content_type(&content_type)
+        && !is_pdf_content_type(&content_type)
+    {
         return Ok(PreviewData {
             content_type,
             size,
@@ -130,7 +142,7 @@ pub async fn get_preview(
         });
     }
 
-    // Check size limits
+    // Check size limits for images
     if is_image_content_type(&content_type) && size > max_allowed {
         return Ok(PreviewData {
             content_type,
@@ -138,6 +150,37 @@ pub async fn get_preview(
             data: PreviewContent::Unsupported {
                 message: format!("Image too large for preview ({} bytes)", size),
             },
+        });
+    }
+
+    // Check size limits for PDFs
+    if is_pdf_content_type(&content_type) && size > MAX_PDF_SIZE {
+        return Ok(PreviewData {
+            content_type,
+            size,
+            data: PreviewContent::Unsupported {
+                message: format!("PDF too large for preview ({} bytes)", size),
+            },
+        });
+    }
+
+    // Handle PDF preview
+    if is_pdf_content_type(&content_type) {
+        let response = client.get_object().bucket(&bucket).key(&key).send().await?;
+        let body = response
+            .body
+            .collect()
+            .await
+            .map_err(|e| AppError::S3(format!("Failed to read body: {}", e)))?;
+        let bytes = body.into_bytes();
+
+        use base64::Engine;
+        let base64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+
+        return Ok(PreviewData {
+            content_type,
+            size,
+            data: PreviewContent::Pdf { base64 },
         });
     }
 
