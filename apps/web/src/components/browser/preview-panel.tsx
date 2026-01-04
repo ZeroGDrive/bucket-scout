@@ -23,8 +23,14 @@ function getFileExtension(name: string): string {
 export function PreviewPanel() {
   const selectedAccountId = useBrowserStore((s) => s.selectedAccountId);
   const selectedBucket = useBrowserStore((s) => s.selectedBucket);
-  const selectedFileKey = useBrowserStore((s) => s.selectedFileKey);
-  const selectFile = useBrowserStore((s) => s.selectFile);
+  const selectedFileKeys = useBrowserStore((s) => s.selectedFileKeys);
+  const clearSelection = useBrowserStore((s) => s.clearSelection);
+  const setPreviewPanelOpen = useBrowserStore((s) => s.setPreviewPanelOpen);
+
+  // Get the first selected file key for preview (show first file when multiple selected)
+  const selectedFileKey = selectedFileKeys.length > 0 ? selectedFileKeys[0] : null;
+  // Filter out folders for preview count
+  const selectedFilesCount = selectedFileKeys.length;
 
   const { data: account } = useAccount(selectedAccountId);
   const { data: preview, isLoading, error } = usePreview(
@@ -39,7 +45,7 @@ export function PreviewPanel() {
   const fileExtension = getFileExtension(fileName);
 
   const handleClose = () => {
-    selectFile(null);
+    setPreviewPanelOpen(false);
   };
 
   const handleCopyKey = async () => {
@@ -65,6 +71,11 @@ export function PreviewPanel() {
       {/* Header */}
       <div className="flex items-start justify-between px-4 py-3 border-b bg-muted/20 shrink-0">
         <div className="min-w-0 flex-1 mr-3">
+          {selectedFilesCount > 1 && (
+            <div className="text-[11px] text-muted-foreground mb-1">
+              {selectedFilesCount} items selected
+            </div>
+          )}
           <div className="flex items-center gap-2 mb-1">
             <Badge variant="secondary" className="text-[10px] font-mono px-1.5 py-0 shrink-0">
               {fileExtension}

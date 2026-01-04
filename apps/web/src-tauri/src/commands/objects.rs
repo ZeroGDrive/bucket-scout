@@ -1,6 +1,7 @@
 use crate::credentials::CredentialsManager;
 use crate::error::AppError;
 use crate::s3::client::S3ClientManager;
+use aws_sdk_s3::types::ObjectIdentifier;
 use serde::Serialize;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -283,6 +284,123 @@ async fn upload_single(
     );
 
     Ok(response.e_tag().map(|s| s.trim_matches('"').to_string()))
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeleteResult {
+    pub deleted: usize,
+    pub errors: Vec<DeleteError>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeleteError {
+    pub key: String,
+    pub error: String,
+}
+
+#[tauri::command(rename_all = "camelCase")]
+pub async fn delete_objects(
+    credentials: State<'_, CredentialsManager>,
+    s3_clients: State<'_, S3ClientManager>,
+    account_id: String,
+    bucket: String,
+    keys: Vec<String>,
+) -> Result<DeleteResult, AppError> {
+    let account = credentials.get_account(&account_id)?;
+    let secret = credentials.get_secret_key(&account_id)?;
+
+    let client = s3_clients
+        .get_or_create_client(&account_id, &account.endpoint, &account.access_key_id, &secret)
+        .await?;
+
+    let mut all_keys_to_delete: Vec<String> = Vec::new();
+
+    // For each key, if it's a folder (ends with /), list all objects with that prefix
+    for key in &keys {
+        if key.ends_with('/') {
+            // It's a folder - recursively list all objects
+            let mut continuation_token: Option<String> = None;
+            loop {
+                let mut request = client
+                    .list_objects_v2()
+                    .bucket(&bucket)
+                    .prefix(key);
+
+                if let Some(token) = &continuation_token {
+                    request = request.continuation_token(token);
+                }
+
+                let response = request.send().await?;
+
+                for obj in response.contents() {
+                    if let Some(obj_key) = obj.key() {
+                        all_keys_to_delete.push(obj_key.to_string());
+                    }
+                }
+
+                if response.is_truncated() == Some(true) {
+                    continuation_token = response.next_continuation_token().map(|s| s.to_string());
+                } else {
+                    break;
+                }
+            }
+        } else {
+            all_keys_to_delete.push(key.clone());
+        }
+    }
+
+    if all_keys_to_delete.is_empty() {
+        return Ok(DeleteResult {
+            deleted: 0,
+            errors: vec![],
+        });
+    }
+
+    let mut total_deleted = 0;
+    let mut all_errors: Vec<DeleteError> = Vec::new();
+
+    // S3 delete_objects can handle up to 1000 objects per call
+    for chunk in all_keys_to_delete.chunks(1000) {
+        let objects_to_delete: Vec<ObjectIdentifier> = chunk
+            .iter()
+            .filter_map(|key| {
+                ObjectIdentifier::builder()
+                    .key(key)
+                    .build()
+                    .ok()
+            })
+            .collect();
+
+        let delete = aws_sdk_s3::types::Delete::builder()
+            .set_objects(Some(objects_to_delete))
+            .build()
+            .map_err(|e| AppError::S3(format!("Failed to build delete request: {:?}", e)))?;
+
+        let response = client
+            .delete_objects()
+            .bucket(&bucket)
+            .delete(delete)
+            .send()
+            .await?;
+
+        // Count successful deletions
+        total_deleted += response.deleted().len();
+
+        // Collect errors
+        for err in response.errors() {
+            all_errors.push(DeleteError {
+                key: err.key().unwrap_or_default().to_string(),
+                error: err.message().unwrap_or_default().to_string(),
+            });
+        }
+    }
+
+    Ok(DeleteResult {
+        deleted: total_deleted,
+        errors: all_errors,
+    })
 }
 
 async fn upload_multipart(

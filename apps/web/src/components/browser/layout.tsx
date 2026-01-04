@@ -15,14 +15,18 @@ import {
 } from "@/components/ui/sheet";
 
 export function BrowserLayout() {
-  const selectedFileKey = useBrowserStore((s) => s.selectedFileKey);
-  const selectFile = useBrowserStore((s) => s.selectFile);
+  const selectedFileKeys = useBrowserStore((s) => s.selectedFileKeys);
+  const previewPanelOpen = useBrowserStore((s) => s.previewPanelOpen);
+  const clearSelection = useBrowserStore((s) => s.clearSelection);
+  const setPreviewPanelOpen = useBrowserStore((s) => s.setPreviewPanelOpen);
 
-  const isPreviewOpen = !!selectedFileKey;
+  // Show preview panel when files are selected and panel is open
+  const hasSelection = selectedFileKeys.length > 0;
+  const isPreviewOpen = hasSelection && previewPanelOpen;
 
   const handleOpenChange = (open: boolean) => {
     if (!open) {
-      selectFile(null);
+      setPreviewPanelOpen(false);
     }
   };
 

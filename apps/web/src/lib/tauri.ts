@@ -6,6 +6,7 @@ import type {
   ObjectMetadata,
   PreviewData,
   ThumbnailData,
+  DeleteResult,
 } from "./types";
 
 // Credentials commands
@@ -97,6 +98,13 @@ export const objects = {
       key: params.key,
       contentType: params.contentType,
       uploadId: params.uploadId,
+    }),
+
+  delete: (params: { accountId: string; bucket: string; keys: string[] }) =>
+    invoke<DeleteResult>("delete_objects", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+      keys: params.keys,
     }),
 };
 

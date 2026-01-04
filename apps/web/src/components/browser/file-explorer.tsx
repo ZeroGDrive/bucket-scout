@@ -1,4 +1,4 @@
-import { useMemo, memo } from "react";
+import { useMemo, memo, useState, useCallback, useEffect, useRef } from "react";
 import {
   Folder,
   File,
@@ -14,9 +14,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { useBrowserStore, useCurrentPrefix } from "@/lib/store";
-import { useObjects, useThumbnail } from "@/lib/queries";
+import { useObjects, useThumbnail, useDeleteObjects } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 import type { FileItem } from "@/lib/types";
+import { FileContextMenu } from "./file-context-menu";
+import { DeleteConfirmationDialog } from "./delete-confirmation-dialog";
+import { toast } from "sonner";
 
 const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "gif", "webp", "bmp"]);
 
@@ -141,11 +144,16 @@ function formatDate(dateString?: string): string {
 export function FileExplorer() {
   const selectedAccountId = useBrowserStore((s) => s.selectedAccountId);
   const selectedBucket = useBrowserStore((s) => s.selectedBucket);
-  const selectedFileKey = useBrowserStore((s) => s.selectedFileKey);
+  const selectedFileKeys = useBrowserStore((s) => s.selectedFileKeys);
   const viewMode = useBrowserStore((s) => s.viewMode);
 
   const navigateTo = useBrowserStore((s) => s.navigateTo);
   const selectFile = useBrowserStore((s) => s.selectFile);
+  const toggleFileSelection = useBrowserStore((s) => s.toggleFileSelection);
+  const selectRange = useBrowserStore((s) => s.selectRange);
+  const selectAll = useBrowserStore((s) => s.selectAll);
+  const clearSelection = useBrowserStore((s) => s.clearSelection);
+  const setPreviewPanelOpen = useBrowserStore((s) => s.setPreviewPanelOpen);
 
   const prefix = useCurrentPrefix();
 
@@ -156,6 +164,14 @@ export function FileExplorer() {
     hasNextPage,
     fetchNextPage,
   } = useObjects(selectedAccountId, selectedBucket, prefix);
+
+  const deleteObjects = useDeleteObjects();
+
+  // Context menu state
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+
+  // Delete confirmation dialog state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   // Combine all pages and transform to FileItems
   const items: FileItem[] = useMemo(() => {
@@ -200,19 +216,150 @@ export function FileExplorer() {
     ];
   }, [data?.pages, prefix]);
 
-  const handleItemClick = (item: FileItem) => {
-    if (item.isFolder) {
-      navigateTo(item.key);
-    } else {
-      selectFile(item.key);
-    }
-  };
+  // Get all item keys for range selection
+  const allKeys = useMemo(() => items.map((item) => item.key), [items]);
 
-  const handleItemDoubleClick = (item: FileItem) => {
-    if (item.isFolder) {
-      navigateTo(item.key);
+  // Get selected items for delete dialog
+  const selectedItems = useMemo(
+    () => items.filter((item) => selectedFileKeys.includes(item.key)),
+    [items, selectedFileKeys]
+  );
+
+  // Handle Cmd+A to select all
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "a") {
+        e.preventDefault();
+        selectAll(allKeys);
+      }
+      // Handle Delete/Backspace key
+      if ((e.key === "Delete" || e.key === "Backspace") && selectedFileKeys.length > 0) {
+        e.preventDefault();
+        setDeleteDialogOpen(true);
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [allKeys, selectAll, selectedFileKeys.length]);
+
+  // Prevent text selection on shift+click (must be on mousedown, not click)
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.shiftKey) {
+      e.preventDefault();
     }
-  };
+  }, []);
+
+  // Use a ref to track click timeout for distinguishing single vs double click
+  const clickTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleItemClick = useCallback(
+    (e: React.MouseEvent, item: FileItem) => {
+      // Clear any pending click timeout
+      if (clickTimeoutRef.current) {
+        clearTimeout(clickTimeoutRef.current);
+        clickTimeoutRef.current = null;
+      }
+
+      // For modifier keys, execute immediately (no delay needed)
+      if (e.metaKey || e.ctrlKey) {
+        toggleFileSelection(item.key);
+        return;
+      }
+      if (e.shiftKey) {
+        selectRange(item.key, allKeys);
+        return;
+      }
+
+      // For regular clicks, delay to allow double-click detection
+      clickTimeoutRef.current = setTimeout(() => {
+        selectFile(item.key);
+        clickTimeoutRef.current = null;
+      }, 200);
+    },
+    [toggleFileSelection, selectRange, selectFile, allKeys]
+  );
+
+  const handleItemDoubleClick = useCallback(
+    (item: FileItem) => {
+      // Clear the single click timeout to prevent selection
+      if (clickTimeoutRef.current) {
+        clearTimeout(clickTimeoutRef.current);
+        clickTimeoutRef.current = null;
+      }
+
+      if (item.isFolder) {
+        navigateTo(item.key);
+      } else {
+        // Select the file and open preview
+        selectFile(item.key);
+        setPreviewPanelOpen(true);
+      }
+    },
+    [navigateTo, selectFile, setPreviewPanelOpen]
+  );
+
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent, item: FileItem) => {
+      e.preventDefault();
+      // If right-clicking on unselected item, select only that item
+      if (!selectedFileKeys.includes(item.key)) {
+        selectFile(item.key);
+      }
+      setContextMenu({ x: e.clientX, y: e.clientY });
+    },
+    [selectedFileKeys, selectFile]
+  );
+
+  const handleCloseContextMenu = useCallback(() => {
+    setContextMenu(null);
+  }, []);
+
+  // Clear selection when clicking on empty area (not on items)
+  const handleContainerClick = useCallback((e: React.MouseEvent) => {
+    // Check if the click target is inside a file item (marked with data-file-item)
+    const target = e.target as HTMLElement;
+    const isClickOnItem = target.closest("[data-file-item]");
+    if (!isClickOnItem) {
+      clearSelection();
+    }
+  }, [clearSelection]);
+
+  const handleDeleteRequest = useCallback(() => {
+    setDeleteDialogOpen(true);
+  }, []);
+
+  const handleConfirmDelete = useCallback(() => {
+    if (!selectedAccountId || !selectedBucket || selectedFileKeys.length === 0) {
+      return;
+    }
+
+    const keysToDelete = [...selectedFileKeys];
+
+    deleteObjects.mutate(
+      {
+        accountId: selectedAccountId,
+        bucket: selectedBucket,
+        keys: keysToDelete,
+      },
+      {
+        onSuccess: (result) => {
+          setDeleteDialogOpen(false);
+          clearSelection();
+          if (result.errors.length > 0) {
+            toast.error(
+              `Deleted ${result.deleted} item(s), but ${result.errors.length} failed`
+            );
+          } else {
+            toast.success(`Deleted ${result.deleted} item(s)`);
+          }
+        },
+        onError: (error) => {
+          toast.error(`Failed to delete: ${error.message}`);
+        },
+      }
+    );
+  }, [selectedAccountId, selectedBucket, selectedFileKeys, deleteObjects, clearSelection]);
 
   // Empty state component
   const EmptyState = ({ icon: Icon, message }: { icon: typeof Folder; message: string }) => (
@@ -256,50 +403,150 @@ export function FileExplorer() {
 
   if (viewMode === "grid") {
     return (
-      <ScrollArea className="h-full">
-        <div className="p-4 grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4">
-          {items.map((item) => {
-            const Icon = getFileIcon(item.name, item.isFolder);
-            const isSelected = selectedFileKey === item.key;
-            const showThumbnail = !item.isFolder && isImageFile(item.name);
+      <>
+        <ScrollArea className="h-full" onClick={handleContainerClick}>
+          <div className="p-4 grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4" onClick={handleContainerClick}>
+            {items.map((item) => {
+              const Icon = getFileIcon(item.name, item.isFolder);
+              const isSelected = selectedFileKeys.includes(item.key);
+              const showThumbnail = !item.isFolder && isImageFile(item.name);
 
-            return (
-              <button
-                key={item.key}
-                type="button"
-                className={cn(
-                  "flex flex-col items-center p-2 rounded-xl cursor-pointer transition-all duration-150 group text-left",
-                  "hover:bg-accent/50 focus:outline-none focus:ring-2 focus:ring-primary/20",
-                  isSelected && "bg-accent ring-2 ring-primary/30"
-                )}
-                onClick={() => handleItemClick(item)}
-                onDoubleClick={() => handleItemDoubleClick(item)}
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  data-file-item
+                  className={cn(
+                    "flex flex-col items-center p-2 rounded-xl cursor-pointer group text-left select-none",
+                    "focus:outline-none focus:ring-2 focus:ring-primary/20",
+                    isSelected ? "bg-accent ring-2 ring-primary/30" : "hover:bg-accent/50"
+                  )}
+                  onMouseDown={handleMouseDown}
+                  onClick={(e) => handleItemClick(e, item)}
+                  onDoubleClick={() => handleItemDoubleClick(item)}
+                  onContextMenu={(e) => handleContextMenu(e, item)}
+                >
+                  {item.isFolder ? (
+                    <div className="w-full aspect-square flex items-center justify-center bg-primary/10 rounded-lg mb-2">
+                      <Folder className="h-12 w-12 text-primary" strokeWidth={1.5} />
+                    </div>
+                  ) : showThumbnail ? (
+                    <div className="w-full aspect-square rounded-lg mb-2 overflow-hidden bg-muted/30">
+                      <ThumbnailImage
+                        accountId={selectedAccountId!}
+                        bucket={selectedBucket!}
+                        fileKey={item.key}
+                        name={item.name}
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-full aspect-square flex items-center justify-center bg-muted/50 rounded-lg mb-2">
+                      <Icon className="h-10 w-10 text-muted-foreground/60" strokeWidth={1.5} />
+                    </div>
+                  )}
+                  <span className="text-xs text-center truncate w-full font-medium px-1">
+                    {item.name}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          {hasNextPage && (
+            <div className="p-4 text-center border-t">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => fetchNextPage()}
+                disabled={isFetchingNextPage}
+                className="text-primary"
               >
-                {item.isFolder ? (
-                  <div className="w-full aspect-square flex items-center justify-center bg-primary/10 rounded-lg mb-2">
-                    <Folder className="h-12 w-12 text-primary" strokeWidth={1.5} />
-                  </div>
-                ) : showThumbnail ? (
-                  <div className="w-full aspect-square rounded-lg mb-2 overflow-hidden bg-muted/30">
-                    <ThumbnailImage
-                      accountId={selectedAccountId!}
-                      bucket={selectedBucket!}
-                      fileKey={item.key}
-                      name={item.name}
-                    />
-                  </div>
-                ) : (
-                  <div className="w-full aspect-square flex items-center justify-center bg-muted/50 rounded-lg mb-2">
-                    <Icon className="h-10 w-10 text-muted-foreground/60" strokeWidth={1.5} />
-                  </div>
-                )}
-                <span className="text-xs text-center truncate w-full font-medium px-1">
-                  {item.name}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+                {isFetchingNextPage ? "Loading..." : "Load more"}
+              </Button>
+            </div>
+          )}
+        </ScrollArea>
+        {contextMenu && (
+          <FileContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            onClose={handleCloseContextMenu}
+            onDelete={handleDeleteRequest}
+            selectedCount={selectedFileKeys.length}
+          />
+        )}
+        <DeleteConfirmationDialog
+          open={deleteDialogOpen}
+          onOpenChange={setDeleteDialogOpen}
+          items={selectedItems}
+          onConfirm={handleConfirmDelete}
+          isDeleting={deleteObjects.isPending}
+        />
+      </>
+    );
+  }
+
+  // List view
+  return (
+    <>
+      <ScrollArea className="h-full" onClick={handleContainerClick}>
+        <table className="w-full text-sm">
+          <thead className="sticky top-0 bg-background/95 backdrop-blur-sm border-b z-10">
+            <tr className="text-left">
+              <th className="px-4 py-2.5 font-medium text-xs uppercase tracking-wider text-muted-foreground">
+                Name
+              </th>
+              <th className="px-4 py-2.5 font-medium text-xs uppercase tracking-wider text-muted-foreground w-24 text-right">
+                Size
+              </th>
+              <th className="px-4 py-2.5 font-medium text-xs uppercase tracking-wider text-muted-foreground w-44 text-right whitespace-nowrap">
+                Modified
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border/50">
+            {items.map((item) => {
+              const Icon = getFileIcon(item.name, item.isFolder);
+              const isSelected = selectedFileKeys.includes(item.key);
+              return (
+                <tr
+                  key={item.key}
+                  data-file-item
+                  className={cn(
+                    "cursor-pointer group select-none",
+                    isSelected ? "bg-accent" : "hover:bg-accent/50"
+                  )}
+                  onMouseDown={handleMouseDown}
+                  onClick={(e) => handleItemClick(e, item)}
+                  onDoubleClick={() => handleItemDoubleClick(item)}
+                  onContextMenu={(e) => handleContextMenu(e, item)}
+                >
+                  <td className="px-4 py-2.5">
+                    <div className="flex items-center gap-3">
+                      <div className={cn(
+                        "rounded p-1 transition-colors",
+                        item.isFolder
+                          ? "bg-primary/10 text-primary"
+                          : "text-muted-foreground"
+                      )}>
+                        <Icon className="h-4 w-4" strokeWidth={1.5} />
+                      </div>
+                      <span className="truncate font-medium">{item.name}</span>
+                      {item.isFolder && (
+                        <ChevronRight className="h-4 w-4 text-muted-foreground/50 ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-4 py-2.5 text-muted-foreground text-right tabular-nums">
+                    {formatFileSize(item.size)}
+                  </td>
+                  <td className="px-4 py-2.5 text-muted-foreground text-right tabular-nums whitespace-nowrap">
+                    {formatDate(item.lastModified)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
         {hasNextPage && (
           <div className="p-4 text-center border-t">
             <Button
@@ -314,80 +561,22 @@ export function FileExplorer() {
           </div>
         )}
       </ScrollArea>
-    );
-  }
-
-  // List view
-  return (
-    <ScrollArea className="h-full">
-      <table className="w-full text-sm">
-        <thead className="sticky top-0 bg-background/95 backdrop-blur-sm border-b z-10">
-          <tr className="text-left">
-            <th className="px-4 py-2.5 font-medium text-xs uppercase tracking-wider text-muted-foreground">
-              Name
-            </th>
-            <th className="px-4 py-2.5 font-medium text-xs uppercase tracking-wider text-muted-foreground w-24 text-right">
-              Size
-            </th>
-            <th className="px-4 py-2.5 font-medium text-xs uppercase tracking-wider text-muted-foreground w-44 text-right whitespace-nowrap">
-              Modified
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border/50">
-          {items.map((item) => {
-            const Icon = getFileIcon(item.name, item.isFolder);
-            const isSelected = selectedFileKey === item.key;
-            return (
-              <tr
-                key={item.key}
-                className={cn(
-                  "hover:bg-accent/50 cursor-pointer transition-colors group",
-                  isSelected && "bg-accent"
-                )}
-                onClick={() => handleItemClick(item)}
-                onDoubleClick={() => handleItemDoubleClick(item)}
-              >
-                <td className="px-4 py-2.5">
-                  <div className="flex items-center gap-3">
-                    <div className={cn(
-                      "rounded p-1 transition-colors",
-                      item.isFolder
-                        ? "bg-primary/10 text-primary"
-                        : "text-muted-foreground"
-                    )}>
-                      <Icon className="h-4 w-4" strokeWidth={1.5} />
-                    </div>
-                    <span className="truncate font-medium">{item.name}</span>
-                    {item.isFolder && (
-                      <ChevronRight className="h-4 w-4 text-muted-foreground/50 ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
-                    )}
-                  </div>
-                </td>
-                <td className="px-4 py-2.5 text-muted-foreground text-right tabular-nums">
-                  {formatFileSize(item.size)}
-                </td>
-                <td className="px-4 py-2.5 text-muted-foreground text-right tabular-nums whitespace-nowrap">
-                  {formatDate(item.lastModified)}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      {hasNextPage && (
-        <div className="p-4 text-center border-t">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => fetchNextPage()}
-            disabled={isFetchingNextPage}
-            className="text-primary"
-          >
-            {isFetchingNextPage ? "Loading..." : "Load more"}
-          </Button>
-        </div>
+      {contextMenu && (
+        <FileContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={handleCloseContextMenu}
+          onDelete={handleDeleteRequest}
+          selectedCount={selectedFileKeys.length}
+        />
       )}
-    </ScrollArea>
+      <DeleteConfirmationDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        items={selectedItems}
+        onConfirm={handleConfirmDelete}
+        isDeleting={deleteObjects.isPending}
+      />
+    </>
   );
 }

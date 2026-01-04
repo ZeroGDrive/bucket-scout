@@ -8,7 +8,8 @@ interface BrowserState {
   selectedAccountId: string | null;
   selectedBucket: string | null;
   currentPath: string[]; // ["folder", "subfolder"]
-  selectedFileKey: string | null;
+  selectedFileKeys: string[]; // Multi-selection (array for React reactivity)
+  lastSelectedKey: string | null; // For Shift+click range selection
 
   // UI state
   viewMode: ViewMode;
@@ -22,7 +23,11 @@ interface BrowserState {
   navigateTo: (folder: string) => void;
   navigateUp: () => void;
   navigateToRoot: () => void;
-  selectFile: (key: string | null) => void;
+  selectFile: (key: string) => void; // Single select (clears others)
+  toggleFileSelection: (key: string) => void; // Cmd/Ctrl+click
+  selectRange: (key: string, allKeys: string[]) => void; // Shift+click
+  selectAll: (allKeys: string[]) => void; // Cmd+A
+  clearSelection: () => void;
   setViewMode: (mode: ViewMode) => void;
   toggleViewMode: () => void;
   setSidebarWidth: (width: number) => void;
@@ -37,7 +42,8 @@ export const useBrowserStore = create<BrowserState>()(
       selectedAccountId: null,
       selectedBucket: null,
       currentPath: [],
-      selectedFileKey: null,
+      selectedFileKeys: [],
+      lastSelectedKey: null,
       viewMode: "list",
       sidebarWidth: 240,
       previewPanelOpen: true,
@@ -48,20 +54,23 @@ export const useBrowserStore = create<BrowserState>()(
           selectedAccountId: id,
           selectedBucket: null,
           currentPath: [],
-          selectedFileKey: null,
+          selectedFileKeys: [],
+          lastSelectedKey: null,
         }),
 
       setBucket: (name) =>
         set({
           selectedBucket: name,
           currentPath: [],
-          selectedFileKey: null,
+          selectedFileKeys: [],
+          lastSelectedKey: null,
         }),
 
       setCurrentPath: (path) =>
         set({
           currentPath: path,
-          selectedFileKey: null,
+          selectedFileKeys: [],
+          lastSelectedKey: null,
         }),
 
       navigateTo: (folder) => {
@@ -71,7 +80,8 @@ export const useBrowserStore = create<BrowserState>()(
         const folderName = folder.replace(/\/$/, "").split("/").pop() || folder;
         set({
           currentPath: [...currentPath, folderName],
-          selectedFileKey: null,
+          selectedFileKeys: [],
+          lastSelectedKey: null,
         });
       },
 
@@ -80,7 +90,8 @@ export const useBrowserStore = create<BrowserState>()(
         if (currentPath.length > 0) {
           set({
             currentPath: currentPath.slice(0, -1),
-            selectedFileKey: null,
+            selectedFileKeys: [],
+            lastSelectedKey: null,
           });
         }
       },
@@ -88,10 +99,79 @@ export const useBrowserStore = create<BrowserState>()(
       navigateToRoot: () =>
         set({
           currentPath: [],
-          selectedFileKey: null,
+          selectedFileKeys: [],
+          lastSelectedKey: null,
         }),
 
-      selectFile: (key) => set({ selectedFileKey: key }),
+      selectFile: (key) =>
+        set({
+          selectedFileKeys: [key],
+          lastSelectedKey: key,
+        }),
+
+      toggleFileSelection: (key) => {
+        const { selectedFileKeys } = get();
+        const index = selectedFileKeys.indexOf(key);
+        if (index >= 0) {
+          // Remove from selection
+          set({
+            selectedFileKeys: selectedFileKeys.filter((k) => k !== key),
+            lastSelectedKey: key,
+          });
+        } else {
+          // Add to selection
+          set({
+            selectedFileKeys: [...selectedFileKeys, key],
+            lastSelectedKey: key,
+          });
+        }
+      },
+
+      selectRange: (key, allKeys) => {
+        const { lastSelectedKey, selectedFileKeys } = get();
+        if (!lastSelectedKey) {
+          // No previous selection, just select this one
+          set({
+            selectedFileKeys: [key],
+            lastSelectedKey: key,
+          });
+          return;
+        }
+
+        const startIndex = allKeys.indexOf(lastSelectedKey);
+        const endIndex = allKeys.indexOf(key);
+
+        if (startIndex === -1 || endIndex === -1) {
+          // Fallback to single selection
+          set({
+            selectedFileKeys: [key],
+            lastSelectedKey: key,
+          });
+          return;
+        }
+
+        const [from, to] = startIndex < endIndex ? [startIndex, endIndex] : [endIndex, startIndex];
+        const rangeKeys = allKeys.slice(from, to + 1);
+        // Merge with existing selection, avoiding duplicates
+        const merged = [...new Set([...selectedFileKeys, ...rangeKeys])];
+
+        set({
+          selectedFileKeys: merged,
+          // Keep lastSelectedKey unchanged for continuous range selection
+        });
+      },
+
+      selectAll: (allKeys) =>
+        set({
+          selectedFileKeys: [...allKeys],
+          lastSelectedKey: allKeys.length > 0 ? allKeys[allKeys.length - 1] : null,
+        }),
+
+      clearSelection: () =>
+        set({
+          selectedFileKeys: [],
+          lastSelectedKey: null,
+        }),
 
       setViewMode: (mode) => set({ viewMode: mode }),
 
