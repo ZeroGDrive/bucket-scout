@@ -37,7 +37,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDE0Mjg0MkY0MkZCMzZGMTAKUldRUWI3TXY5RUlvRk5oNWNlYTRKamFBQUMxcCtOUkVQejZCZXZab1VFWXJGcEd0WDZ4bE95Y0kK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFENkJCQTUzQTcxOTNBOTMKUldTVE9obW5VN3Byclg5NzBHTzJjMFViZnV2OVNqakZJNXJLK296T2theHBzZUlUeVpvREh3UWoK",
       "endpoints": [
         "https://github.com/ZeroGDrive/s3-browser/releases/latest/download/latest.json"
       ]
