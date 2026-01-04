@@ -1,4 +1,4 @@
-import { Trash2 } from "lucide-react";
+import { Trash2, Pencil, Copy, Scissors, Link } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
@@ -8,10 +8,26 @@ interface FileContextMenuProps {
   y: number;
   onClose: () => void;
   onDelete: () => void;
+  onRename: () => void;
+  onCopy: () => void;
+  onCut: () => void;
+  onShare: () => void;
   selectedCount: number;
+  isFolder: boolean;
 }
 
-export function FileContextMenu({ x, y, onClose, onDelete, selectedCount }: FileContextMenuProps) {
+export function FileContextMenu({
+  x,
+  y,
+  onClose,
+  onDelete,
+  onRename,
+  onCopy,
+  onCut,
+  onShare,
+  selectedCount,
+  isFolder,
+}: FileContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Adjust position to keep menu in viewport
@@ -60,36 +76,98 @@ export function FileContextMenu({ x, y, onClose, onDelete, selectedCount }: File
     };
   }, [onClose]);
 
-  const handleDelete = () => {
-    onDelete();
+  const handleAction = (action: () => void) => {
+    action();
     onClose();
   };
+
+  const menuItemClass = cn(
+    "relative flex w-full cursor-default select-none items-center gap-2 rounded-none px-2 py-2 text-xs outline-none",
+    "hover:bg-accent focus:bg-accent",
+    "[&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+  );
+
+  const destructiveItemClass = cn(
+    "relative flex w-full cursor-default select-none items-center gap-2 rounded-none px-2 py-2 text-xs outline-none",
+    "text-destructive hover:bg-destructive/10 focus:bg-destructive/10 focus:text-destructive",
+    "[&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+  );
+
+  const separatorClass = "h-px bg-border my-1";
 
   // Using shadcn context-menu styles
   const menu = (
     <div
       ref={menuRef}
       className={cn(
-        "fixed z-50 min-w-36 ring-foreground/10 bg-popover text-popover-foreground rounded-none shadow-md ring-1",
+        "fixed z-50 min-w-40 ring-foreground/10 bg-popover text-popover-foreground rounded-none shadow-md ring-1",
         "animate-in fade-in-0 zoom-in-95",
       )}
       style={{ left: x, top: y }}
       role="menu"
       aria-orientation="vertical"
     >
+      {/* Rename - only for single selection */}
+      {selectedCount === 1 && (
+        <button
+          type="button"
+          onClick={() => handleAction(onRename)}
+          className={menuItemClass}
+          role="menuitem"
+        >
+          <Pencil />
+          <span>Rename</span>
+        </button>
+      )}
+
+      {/* Copy */}
       <button
         type="button"
-        onClick={handleDelete}
-        className={cn(
-          // Using shadcn ContextMenuItem destructive variant styles
-          "relative flex w-full cursor-default select-none items-center gap-2 rounded-none px-2 py-2 text-xs outline-none",
-          "text-destructive hover:bg-destructive/10 focus:bg-destructive/10 focus:text-destructive",
-          "[&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
-        )}
+        onClick={() => handleAction(onCopy)}
+        className={menuItemClass}
+        role="menuitem"
+      >
+        <Copy />
+        <span>Copy{selectedCount > 1 ? ` (${selectedCount})` : ""}</span>
+      </button>
+
+      {/* Cut */}
+      <button
+        type="button"
+        onClick={() => handleAction(onCut)}
+        className={menuItemClass}
+        role="menuitem"
+      >
+        <Scissors />
+        <span>Cut{selectedCount > 1 ? ` (${selectedCount})` : ""}</span>
+      </button>
+
+      {/* Share - only for single file (not folder) */}
+      {selectedCount === 1 && !isFolder && (
+        <>
+          <div className={separatorClass} />
+          <button
+            type="button"
+            onClick={() => handleAction(onShare)}
+            className={menuItemClass}
+            role="menuitem"
+          >
+            <Link />
+            <span>Get Shareable Link</span>
+          </button>
+        </>
+      )}
+
+      {/* Delete */}
+      <div className={separatorClass} />
+      <button
+        type="button"
+        onClick={() => handleAction(onDelete)}
+        className={destructiveItemClass}
         role="menuitem"
       >
         <Trash2 />
-        <span>Delete{selectedCount > 1 ? ` (${selectedCount} items)` : ""}</span>
+        <span>Delete{selectedCount > 1 ? ` (${selectedCount})` : ""}</span>
       </button>
     </div>
   );

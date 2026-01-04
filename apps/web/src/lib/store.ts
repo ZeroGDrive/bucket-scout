@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import type { ClipboardState } from "./types";
 
 export type ViewMode = "grid" | "list";
 
@@ -10,6 +11,9 @@ interface BrowserState {
   currentPath: string[]; // ["folder", "subfolder"]
   selectedFileKeys: string[]; // Multi-selection (array for React reactivity)
   lastSelectedKey: string | null; // For Shift+click range selection
+
+  // Clipboard state for copy/cut operations
+  clipboard: ClipboardState | null;
 
   // Search state
   searchQuery: string;
@@ -40,6 +44,11 @@ interface BrowserState {
   setSearchQuery: (query: string) => void;
   setSearchRecursive: (recursive: boolean) => void;
   clearSearch: () => void;
+
+  // Clipboard actions
+  copyToClipboard: (keys: string[], bucket: string) => void;
+  cutToClipboard: (keys: string[], bucket: string) => void;
+  clearClipboard: () => void;
 }
 
 export const useBrowserStore = create<BrowserState>()(
@@ -51,6 +60,7 @@ export const useBrowserStore = create<BrowserState>()(
       currentPath: [],
       selectedFileKeys: [],
       lastSelectedKey: null,
+      clipboard: null,
       searchQuery: "",
       searchRecursive: true,
       viewMode: "list",
@@ -204,6 +214,13 @@ export const useBrowserStore = create<BrowserState>()(
       setSearchRecursive: (recursive) => set({ searchRecursive: recursive }),
 
       clearSearch: () => set({ searchQuery: "" }),
+
+      // Clipboard actions
+      copyToClipboard: (keys, bucket) => set({ clipboard: { keys, bucket, operation: "copy" } }),
+
+      cutToClipboard: (keys, bucket) => set({ clipboard: { keys, bucket, operation: "cut" } }),
+
+      clearClipboard: () => set({ clipboard: null }),
     }),
     {
       name: "s3-browser-storage",
@@ -231,3 +248,6 @@ export const useCurrentPrefix = () =>
 // Search selectors
 export const useSearchQuery = () => useBrowserStore((state) => state.searchQuery);
 export const useSearchRecursive = () => useBrowserStore((state) => state.searchRecursive);
+
+// Clipboard selector
+export const useClipboard = () => useBrowserStore((state) => state.clipboard);

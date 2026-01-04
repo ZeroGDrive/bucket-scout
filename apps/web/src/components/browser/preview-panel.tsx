@@ -1,4 +1,4 @@
-import { X, FileX, AlertCircle, Download, ExternalLink, Copy, Check } from "lucide-react";
+import { X, FileX, AlertCircle, Download, ExternalLink, Copy, Check, Link } from "lucide-react";
 import { useState } from "react";
 import { Image } from "@unpic/react";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -9,6 +9,7 @@ import { useBrowserStore } from "@/lib/store";
 import { usePreview, useAccount } from "@/lib/queries";
 import { useDownloadManager } from "@/hooks/use-download-manager";
 import { toast } from "sonner";
+import { PresignedUrlDialog } from "./presigned-url-dialog";
 
 function formatFileSize(bytes: number): string {
   if (bytes === 0) return "0 B";
@@ -26,7 +27,6 @@ export function PreviewPanel() {
   const selectedAccountId = useBrowserStore((s) => s.selectedAccountId);
   const selectedBucket = useBrowserStore((s) => s.selectedBucket);
   const selectedFileKeys = useBrowserStore((s) => s.selectedFileKeys);
-  const clearSelection = useBrowserStore((s) => s.clearSelection);
   const setPreviewPanelOpen = useBrowserStore((s) => s.setPreviewPanelOpen);
 
   // Get the first selected file key for preview (show first file when multiple selected)
@@ -43,6 +43,7 @@ export function PreviewPanel() {
 
   const { queueDownloads } = useDownloadManager();
   const [copied, setCopied] = useState(false);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
 
   const fileName = selectedFileKey?.split("/").pop() || "";
   const fileExtension = getFileExtension(fileName);
@@ -183,7 +184,30 @@ export function PreviewPanel() {
             Download
           </Button>
         </div>
+
+        {/* Share Button */}
+        <Button
+          variant="secondary"
+          size="sm"
+          className="w-full"
+          onClick={() => setShareDialogOpen(true)}
+        >
+          <Link className="h-3.5 w-3.5 mr-1.5" />
+          Get Shareable Link
+        </Button>
       </div>
+
+      {/* Share Dialog */}
+      {selectedAccountId && selectedBucket && selectedFileKey && (
+        <PresignedUrlDialog
+          open={shareDialogOpen}
+          onOpenChange={setShareDialogOpen}
+          accountId={selectedAccountId}
+          bucket={selectedBucket}
+          fileKey={selectedFileKey}
+          fileName={fileName}
+        />
+      )}
     </div>
   );
 }
@@ -230,6 +254,21 @@ function PreviewContent({ data }: { data: import("@/lib/types").PreviewContent }
               {JSON.stringify(data.content, null, 2)}
             </pre>
           </div>
+        </div>
+      );
+
+    case "Pdf":
+      return (
+        <div className="flex flex-col items-center justify-center h-full p-8 text-muted-foreground">
+          <div className="relative mb-4">
+            <div className="bg-muted/50 rounded-xl p-4">
+              <FileX className="h-8 w-8 text-muted-foreground/50" strokeWidth={1.5} />
+            </div>
+          </div>
+          <p className="text-sm font-medium mb-1">Preview not available</p>
+          <p className="text-xs text-center max-w-[200px] text-muted-foreground/70">
+            PDF preview is not supported. Download to view.
+          </p>
         </div>
       );
 

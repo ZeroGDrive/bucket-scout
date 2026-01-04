@@ -13,13 +13,15 @@ import { Image } from "@unpic/react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { useBrowserStore, useCurrentPrefix } from "@/lib/store";
+import { useBrowserStore, useCurrentPrefix, useClipboard } from "@/lib/store";
 import {
   useObjects,
   useThumbnail,
   useDeleteObjects,
   useSearchObjects,
   useCreateFolder,
+  useRenameObject,
+  useCopyMoveObjects,
 } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 import type { FileItem } from "@/lib/types";
@@ -28,6 +30,8 @@ import { FileContextMenu } from "./file-context-menu";
 import { EmptyAreaContextMenu } from "./empty-area-context-menu";
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog";
 import { CreateFolderDialog } from "./create-folder-dialog";
+import { RenameDialog } from "./rename-dialog";
+import { PresignedUrlDialog } from "./presigned-url-dialog";
 import { toast } from "sonner";
 
 const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "gif", "webp", "bmp"]);
@@ -166,6 +170,12 @@ export function FileExplorer() {
   const clearSelection = useBrowserStore((s) => s.clearSelection);
   const setPreviewPanelOpen = useBrowserStore((s) => s.setPreviewPanelOpen);
 
+  // Clipboard state
+  const clipboard = useClipboard();
+  const copyToClipboard = useBrowserStore((s) => s.copyToClipboard);
+  const cutToClipboard = useBrowserStore((s) => s.cutToClipboard);
+  const clearClipboard = useBrowserStore((s) => s.clearClipboard);
+
   const prefix = useCurrentPrefix();
 
   const { data, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage } = useObjects(
@@ -185,6 +195,8 @@ export function FileExplorer() {
 
   const deleteObjects = useDeleteObjects();
   const createFolder = useCreateFolder();
+  const renameObject = useRenameObject();
+  const copyMoveObjects = useCopyMoveObjects();
 
   // Context menu state
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -192,9 +204,15 @@ export function FileExplorer() {
     null,
   );
 
-  // Delete confirmation dialog state
+  // Dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [createFolderDialogOpen, setCreateFolderDialogOpen] = useState(false);
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+
+  // Track the item being renamed/shared
+  const [itemToRename, setItemToRename] = useState<FileItem | null>(null);
+  const [itemToShare, setItemToShare] = useState<FileItem | null>(null);
 
   // Combine all pages and transform to FileItems
   const rawItems: FileItem[] = useMemo(() => {
@@ -277,24 +295,6 @@ export function FileExplorer() {
     () => items.filter((item) => selectedFileKeys.includes(item.key)),
     [items, selectedFileKeys],
   );
-
-  // Handle Cmd+A to select all
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "a") {
-        e.preventDefault();
-        selectAll(allKeys);
-      }
-      // Handle Delete/Backspace key
-      if ((e.key === "Delete" || e.key === "Backspace") && selectedFileKeys.length > 0) {
-        e.preventDefault();
-        setDeleteDialogOpen(true);
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [allKeys, selectAll, selectedFileKeys.length]);
 
   // Prevent text selection on shift+click (must be on mousedown, not click)
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -464,6 +464,146 @@ export function FileExplorer() {
     );
   }, [selectedAccountId, selectedBucket, selectedFileKeys, deleteObjects, clearSelection]);
 
+  // Rename handlers
+  const handleRenameRequest = useCallback(() => {
+    const item = selectedItems[0];
+    if (item) {
+      setItemToRename(item);
+      setRenameDialogOpen(true);
+    }
+  }, [selectedItems]);
+
+  const handleConfirmRename = useCallback(
+    (newName: string) => {
+      if (!selectedAccountId || !selectedBucket || !itemToRename) {
+        return;
+      }
+
+      renameObject.mutate(
+        {
+          accountId: selectedAccountId,
+          bucket: selectedBucket,
+          oldKey: itemToRename.key,
+          newName,
+        },
+        {
+          onSuccess: (result) => {
+            setRenameDialogOpen(false);
+            setItemToRename(null);
+            clearSelection();
+            toast.success(
+              `Renamed "${itemToRename.name}" to "${newName}"${result.objectsRenamed > 1 ? ` (${result.objectsRenamed} files)` : ""}`,
+            );
+          },
+          onError: (error) => {
+            toast.error(`Failed to rename: ${error.message}`);
+          },
+        },
+      );
+    },
+    [selectedAccountId, selectedBucket, itemToRename, renameObject, clearSelection],
+  );
+
+  // Copy/Cut handlers
+  const handleCopy = useCallback(() => {
+    if (selectedBucket && selectedFileKeys.length > 0) {
+      copyToClipboard(selectedFileKeys, selectedBucket);
+      toast.success(`Copied ${selectedFileKeys.length} item(s) to clipboard`);
+    }
+  }, [selectedBucket, selectedFileKeys, copyToClipboard]);
+
+  const handleCut = useCallback(() => {
+    if (selectedBucket && selectedFileKeys.length > 0) {
+      cutToClipboard(selectedFileKeys, selectedBucket);
+      toast.success(`Cut ${selectedFileKeys.length} item(s) to clipboard`);
+    }
+  }, [selectedBucket, selectedFileKeys, cutToClipboard]);
+
+  // Paste handler
+  const handlePaste = useCallback(() => {
+    if (!selectedAccountId || !selectedBucket || !clipboard) {
+      return;
+    }
+
+    // Only allow paste within same bucket for now
+    if (clipboard.bucket !== selectedBucket) {
+      toast.error("Cross-bucket paste not supported yet");
+      return;
+    }
+
+    const deleteSource = clipboard.operation === "cut";
+
+    copyMoveObjects.mutate(
+      {
+        accountId: selectedAccountId,
+        bucket: selectedBucket,
+        sourceKeys: clipboard.keys,
+        destinationPrefix: prefix,
+        deleteSource,
+      },
+      {
+        onSuccess: (result) => {
+          if (deleteSource) {
+            clearClipboard();
+          }
+          if (result.errors.length > 0) {
+            toast.error(
+              `${deleteSource ? "Moved" : "Copied"} ${result.objectsCopied} item(s), but ${result.errors.length} failed`,
+            );
+          } else {
+            toast.success(`${deleteSource ? "Moved" : "Copied"} ${result.objectsCopied} item(s)`);
+          }
+        },
+        onError: (error) => {
+          toast.error(`Failed to ${deleteSource ? "move" : "copy"}: ${error.message}`);
+        },
+      },
+    );
+  }, [selectedAccountId, selectedBucket, clipboard, prefix, copyMoveObjects, clearClipboard]);
+
+  // Share handler
+  const handleShareRequest = useCallback(() => {
+    const item = selectedItems[0];
+    if (item && !item.isFolder) {
+      setItemToShare(item);
+      setShareDialogOpen(true);
+    }
+  }, [selectedItems]);
+
+  // Handle keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd/Ctrl+A: Select all
+      if ((e.metaKey || e.ctrlKey) && e.key === "a") {
+        e.preventDefault();
+        selectAll(allKeys);
+      }
+      // Cmd/Ctrl+C: Copy
+      if ((e.metaKey || e.ctrlKey) && e.key === "c" && selectedFileKeys.length > 0) {
+        e.preventDefault();
+        handleCopy();
+      }
+      // Cmd/Ctrl+X: Cut
+      if ((e.metaKey || e.ctrlKey) && e.key === "x" && selectedFileKeys.length > 0) {
+        e.preventDefault();
+        handleCut();
+      }
+      // Cmd/Ctrl+V: Paste
+      if ((e.metaKey || e.ctrlKey) && e.key === "v" && clipboard) {
+        e.preventDefault();
+        handlePaste();
+      }
+      // Delete/Backspace: Delete
+      if ((e.key === "Delete" || e.key === "Backspace") && selectedFileKeys.length > 0) {
+        e.preventDefault();
+        setDeleteDialogOpen(true);
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [allKeys, selectAll, selectedFileKeys.length, clipboard, handleCopy, handleCut, handlePaste]);
+
   // Empty state component
   const EmptyState = ({ icon: Icon, message }: { icon: typeof Folder; message: string }) => (
     <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-8">
@@ -596,7 +736,12 @@ export function FileExplorer() {
             y={contextMenu.y}
             onClose={handleCloseContextMenu}
             onDelete={handleDeleteRequest}
+            onRename={handleRenameRequest}
+            onCopy={handleCopy}
+            onCut={handleCut}
+            onShare={handleShareRequest}
             selectedCount={selectedFileKeys.length}
+            isFolder={selectedItems[0]?.isFolder ?? false}
           />
         )}
         {emptyAreaContextMenu && (
@@ -605,6 +750,10 @@ export function FileExplorer() {
             y={emptyAreaContextMenu.y}
             onClose={handleCloseEmptyAreaContextMenu}
             onCreateFolder={handleCreateFolderRequest}
+            onPaste={handlePaste}
+            hasClipboard={!!clipboard && clipboard.bucket === selectedBucket}
+            clipboardOperation={clipboard?.operation}
+            clipboardCount={clipboard?.keys.length}
           />
         )}
         <DeleteConfirmationDialog
@@ -621,6 +770,24 @@ export function FileExplorer() {
           isCreating={createFolder.isPending}
           currentPath={prefix || "/"}
         />
+        <RenameDialog
+          open={renameDialogOpen}
+          onOpenChange={setRenameDialogOpen}
+          onConfirm={handleConfirmRename}
+          isRenaming={renameObject.isPending}
+          currentName={itemToRename?.name ?? ""}
+          isFolder={itemToRename?.isFolder ?? false}
+        />
+        {itemToShare && selectedAccountId && selectedBucket && (
+          <PresignedUrlDialog
+            open={shareDialogOpen}
+            onOpenChange={setShareDialogOpen}
+            accountId={selectedAccountId}
+            bucket={selectedBucket}
+            fileKey={itemToShare.key}
+            fileName={itemToShare.name}
+          />
+        )}
       </>
     );
   }
@@ -711,7 +878,12 @@ export function FileExplorer() {
           y={contextMenu.y}
           onClose={handleCloseContextMenu}
           onDelete={handleDeleteRequest}
+          onRename={handleRenameRequest}
+          onCopy={handleCopy}
+          onCut={handleCut}
+          onShare={handleShareRequest}
           selectedCount={selectedFileKeys.length}
+          isFolder={selectedItems[0]?.isFolder ?? false}
         />
       )}
       {emptyAreaContextMenu && (
@@ -720,6 +892,10 @@ export function FileExplorer() {
           y={emptyAreaContextMenu.y}
           onClose={handleCloseEmptyAreaContextMenu}
           onCreateFolder={handleCreateFolderRequest}
+          onPaste={handlePaste}
+          hasClipboard={!!clipboard && clipboard.bucket === selectedBucket}
+          clipboardOperation={clipboard?.operation}
+          clipboardCount={clipboard?.keys.length}
         />
       )}
       <DeleteConfirmationDialog
@@ -736,6 +912,24 @@ export function FileExplorer() {
         isCreating={createFolder.isPending}
         currentPath={prefix || "/"}
       />
+      <RenameDialog
+        open={renameDialogOpen}
+        onOpenChange={setRenameDialogOpen}
+        onConfirm={handleConfirmRename}
+        isRenaming={renameObject.isPending}
+        currentName={itemToRename?.name ?? ""}
+        isFolder={itemToRename?.isFolder ?? false}
+      />
+      {itemToShare && selectedAccountId && selectedBucket && (
+        <PresignedUrlDialog
+          open={shareDialogOpen}
+          onOpenChange={setShareDialogOpen}
+          accountId={selectedAccountId}
+          bucket={selectedBucket}
+          fileKey={itemToShare.key}
+          fileName={itemToShare.name}
+        />
+      )}
     </>
   );
 }

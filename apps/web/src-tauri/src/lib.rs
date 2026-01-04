@@ -31,6 +31,9 @@ pub fn run() {
             commands::objects::create_folder,
             commands::objects::search_objects,
             commands::objects::download_object,
+            commands::objects::generate_presigned_url,
+            commands::objects::rename_object,
+            commands::objects::copy_objects,
             // Preview commands
             commands::preview::get_preview,
             commands::preview::get_thumbnail,

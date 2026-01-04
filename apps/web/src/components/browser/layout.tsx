@@ -12,7 +12,6 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 export function BrowserLayout() {
   const selectedFileKeys = useBrowserStore((s) => s.selectedFileKeys);
   const previewPanelOpen = useBrowserStore((s) => s.previewPanelOpen);
-  const clearSelection = useBrowserStore((s) => s.clearSelection);
   const setPreviewPanelOpen = useBrowserStore((s) => s.setPreviewPanelOpen);
 
   // Show preview panel when files are selected and panel is open

@@ -1,10 +1,12 @@
 use crate::credentials::CredentialsManager;
 use crate::error::AppError;
 use crate::s3::client::S3ClientManager;
+use aws_sdk_s3::presigning::PresigningConfig;
 use aws_sdk_s3::types::ObjectIdentifier;
 use serde::Serialize;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 use tauri::{AppHandle, Emitter, State};
 use tokio::io::AsyncReadExt;
 
@@ -826,4 +828,385 @@ pub async fn search_objects(
     }
 
     Ok(results)
+}
+
+// Presigned URL types
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PresignedUrlResult {
+    pub url: String,
+    pub expires_at: String,
+}
+
+/// Generate a presigned URL for downloading an object
+#[tauri::command(rename_all = "camelCase")]
+pub async fn generate_presigned_url(
+    credentials: State<'_, CredentialsManager>,
+    s3_clients: State<'_, S3ClientManager>,
+    account_id: String,
+    bucket: String,
+    key: String,
+    expires_in_seconds: u64,
+) -> Result<PresignedUrlResult, AppError> {
+    let account = credentials.get_account(&account_id)?;
+    let secret = credentials.get_secret_key(&account_id)?;
+
+    let client = s3_clients
+        .get_or_create_client(&account_id, &account.endpoint, &account.access_key_id, &secret)
+        .await?;
+
+    let expires_in = Duration::from_secs(expires_in_seconds);
+    let presigning_config = PresigningConfig::expires_in(expires_in)
+        .map_err(|e| AppError::InvalidInput(format!("Invalid expiry duration: {}", e)))?;
+
+    let presigned_request = client
+        .get_object()
+        .bucket(&bucket)
+        .key(&key)
+        .presigned(presigning_config)
+        .await
+        .map_err(|e| AppError::S3(format!("Failed to generate presigned URL: {:?}", e)))?;
+
+    let expires_at = chrono::Utc::now() + chrono::Duration::seconds(expires_in_seconds as i64);
+
+    Ok(PresignedUrlResult {
+        url: presigned_request.uri().to_string(),
+        expires_at: expires_at.to_rfc3339(),
+    })
+}
+
+// Rename types
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RenameResult {
+    pub old_key: String,
+    pub new_key: String,
+    pub objects_renamed: usize,
+}
+
+/// Rename an object or folder by copying to new key and deleting old key
+#[tauri::command(rename_all = "camelCase")]
+pub async fn rename_object(
+    credentials: State<'_, CredentialsManager>,
+    s3_clients: State<'_, S3ClientManager>,
+    account_id: String,
+    bucket: String,
+    old_key: String,
+    new_name: String,
+) -> Result<RenameResult, AppError> {
+    // Validate new name
+    if new_name.is_empty() {
+        return Err(AppError::InvalidInput("New name cannot be empty".into()));
+    }
+    if new_name.contains('/') || new_name.contains('\\') {
+        return Err(AppError::InvalidInput(
+            "New name cannot contain slashes".into(),
+        ));
+    }
+
+    let account = credentials.get_account(&account_id)?;
+    let secret = credentials.get_secret_key(&account_id)?;
+
+    let client = s3_clients
+        .get_or_create_client(&account_id, &account.endpoint, &account.access_key_id, &secret)
+        .await?;
+
+    let is_folder = old_key.ends_with('/');
+
+    // Calculate new key by replacing the last component of the path
+    let new_key = if is_folder {
+        // For folders: replace the folder name
+        let parts: Vec<&str> = old_key.trim_end_matches('/').split('/').collect();
+        if parts.len() == 1 {
+            format!("{}/", new_name)
+        } else {
+            let parent = parts[..parts.len() - 1].join("/");
+            format!("{}/{}/", parent, new_name)
+        }
+    } else {
+        // For files: replace the file name
+        let parts: Vec<&str> = old_key.split('/').collect();
+        if parts.len() == 1 {
+            new_name.clone()
+        } else {
+            let parent = parts[..parts.len() - 1].join("/");
+            format!("{}/{}", parent, new_name)
+        }
+    };
+
+    let mut objects_renamed = 0;
+
+    if is_folder {
+        // For folders, we need to copy all objects with the old prefix to the new prefix
+        let mut continuation_token: Option<String> = None;
+
+        loop {
+            let mut request = client.list_objects_v2().bucket(&bucket).prefix(&old_key);
+
+            if let Some(token) = &continuation_token {
+                request = request.continuation_token(token);
+            }
+
+            let response = request.send().await?;
+
+            for obj in response.contents() {
+                if let Some(obj_key) = obj.key() {
+                    // Calculate the new key by replacing the old prefix with the new one
+                    let relative_path = obj_key.strip_prefix(&old_key).unwrap_or(obj_key);
+                    let dest_key = format!("{}{}", new_key, relative_path);
+
+                    // Copy to new location
+                    let copy_source = format!(
+                        "{}/{}",
+                        bucket,
+                        urlencoding::encode(obj_key)
+                    );
+
+                    client
+                        .copy_object()
+                        .bucket(&bucket)
+                        .key(&dest_key)
+                        .copy_source(&copy_source)
+                        .send()
+                        .await
+                        .map_err(|e| {
+                            AppError::S3(format!("Failed to copy {}: {:?}", obj_key, e))
+                        })?;
+
+                    // Delete old object
+                    client
+                        .delete_object()
+                        .bucket(&bucket)
+                        .key(obj_key)
+                        .send()
+                        .await
+                        .map_err(|e| {
+                            AppError::S3(format!("Failed to delete {}: {:?}", obj_key, e))
+                        })?;
+
+                    objects_renamed += 1;
+                }
+            }
+
+            if response.is_truncated() == Some(true) {
+                continuation_token = response.next_continuation_token().map(|s| s.to_string());
+            } else {
+                break;
+            }
+        }
+    } else {
+        // For single files, just copy and delete
+        let copy_source = format!(
+            "{}/{}",
+            bucket,
+            urlencoding::encode(&old_key)
+        );
+
+        client
+            .copy_object()
+            .bucket(&bucket)
+            .key(&new_key)
+            .copy_source(&copy_source)
+            .send()
+            .await
+            .map_err(|e| AppError::S3(format!("Failed to copy object: {:?}", e)))?;
+
+        client
+            .delete_object()
+            .bucket(&bucket)
+            .key(&old_key)
+            .send()
+            .await
+            .map_err(|e| AppError::S3(format!("Failed to delete old object: {:?}", e)))?;
+
+        objects_renamed = 1;
+    }
+
+    Ok(RenameResult {
+        old_key,
+        new_key,
+        objects_renamed,
+    })
+}
+
+// Copy/Move types
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CopyMoveResult {
+    pub objects_copied: usize,
+    pub objects_deleted: usize,
+    pub errors: Vec<CopyMoveError>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CopyMoveError {
+    pub source_key: String,
+    pub error: String,
+}
+
+/// Copy or move objects to a destination prefix
+#[tauri::command(rename_all = "camelCase")]
+pub async fn copy_objects(
+    credentials: State<'_, CredentialsManager>,
+    s3_clients: State<'_, S3ClientManager>,
+    account_id: String,
+    bucket: String,
+    source_keys: Vec<String>,
+    destination_prefix: String,
+    delete_source: bool,
+) -> Result<CopyMoveResult, AppError> {
+    let account = credentials.get_account(&account_id)?;
+    let secret = credentials.get_secret_key(&account_id)?;
+
+    let client = s3_clients
+        .get_or_create_client(&account_id, &account.endpoint, &account.access_key_id, &secret)
+        .await?;
+
+    let mut objects_copied = 0;
+    let mut objects_deleted = 0;
+    let mut errors: Vec<CopyMoveError> = Vec::new();
+
+    for source_key in &source_keys {
+        let is_folder = source_key.ends_with('/');
+
+        if is_folder {
+            // For folders, copy all objects recursively
+            let mut continuation_token: Option<String> = None;
+
+            loop {
+                let mut request = client.list_objects_v2().bucket(&bucket).prefix(source_key);
+
+                if let Some(token) = &continuation_token {
+                    request = request.continuation_token(token);
+                }
+
+                let response = match request.send().await {
+                    Ok(r) => r,
+                    Err(e) => {
+                        errors.push(CopyMoveError {
+                            source_key: source_key.clone(),
+                            error: format!("Failed to list folder: {:?}", e),
+                        });
+                        break;
+                    }
+                };
+
+                for obj in response.contents() {
+                    if let Some(obj_key) = obj.key() {
+                        // Get the relative path within the folder
+                        let folder_name = source_key
+                            .trim_end_matches('/')
+                            .split('/')
+                            .last()
+                            .unwrap_or("");
+                        let relative_path = obj_key.strip_prefix(source_key).unwrap_or(obj_key);
+                        let dest_key =
+                            format!("{}{}/{}", destination_prefix, folder_name, relative_path);
+
+                        // Copy the object
+                        let copy_source = format!(
+                            "{}/{}",
+                            bucket,
+                            urlencoding::encode(obj_key)
+                        );
+
+                        match client
+                            .copy_object()
+                            .bucket(&bucket)
+                            .key(&dest_key)
+                            .copy_source(&copy_source)
+                            .send()
+                            .await
+                        {
+                            Ok(_) => {
+                                objects_copied += 1;
+
+                                // Delete if moving
+                                if delete_source {
+                                    match client
+                                        .delete_object()
+                                        .bucket(&bucket)
+                                        .key(obj_key)
+                                        .send()
+                                        .await
+                                    {
+                                        Ok(_) => objects_deleted += 1,
+                                        Err(e) => errors.push(CopyMoveError {
+                                            source_key: obj_key.to_string(),
+                                            error: format!("Failed to delete: {:?}", e),
+                                        }),
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                errors.push(CopyMoveError {
+                                    source_key: obj_key.to_string(),
+                                    error: format!("Failed to copy: {:?}", e),
+                                });
+                            }
+                        }
+                    }
+                }
+
+                if response.is_truncated() == Some(true) {
+                    continuation_token = response.next_continuation_token().map(|s| s.to_string());
+                } else {
+                    break;
+                }
+            }
+        } else {
+            // For single files
+            let file_name = source_key.split('/').last().unwrap_or(source_key);
+            let dest_key = format!("{}{}", destination_prefix, file_name);
+
+            let copy_source = format!(
+                "{}/{}",
+                bucket,
+                urlencoding::encode(source_key)
+            );
+
+            match client
+                .copy_object()
+                .bucket(&bucket)
+                .key(&dest_key)
+                .copy_source(&copy_source)
+                .send()
+                .await
+            {
+                Ok(_) => {
+                    objects_copied += 1;
+
+                    // Delete if moving
+                    if delete_source {
+                        match client
+                            .delete_object()
+                            .bucket(&bucket)
+                            .key(source_key)
+                            .send()
+                            .await
+                        {
+                            Ok(_) => objects_deleted += 1,
+                            Err(e) => errors.push(CopyMoveError {
+                                source_key: source_key.clone(),
+                                error: format!("Failed to delete: {:?}", e),
+                            }),
+                        }
+                    }
+                }
+                Err(e) => {
+                    errors.push(CopyMoveError {
+                        source_key: source_key.clone(),
+                        error: format!("Failed to copy: {:?}", e),
+                    });
+                }
+            }
+        }
+    }
+
+    Ok(CopyMoveResult {
+        objects_copied,
+        objects_deleted,
+        errors,
+    })
 }
