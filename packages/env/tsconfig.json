@@ -1,0 +1,3 @@
+{
+  "extends": "@s3-browser/config/tsconfig.base.json"
+}
