@@ -1,4 +1,4 @@
-import { Trash2, Pencil, Copy, Scissors, Link } from "lucide-react";
+import { Trash2, Pencil, Copy, Scissors, Link, Download } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
@@ -12,6 +12,7 @@ interface FileContextMenuProps {
   onCopy: () => void;
   onCut: () => void;
   onShare: () => void;
+  onDownload: () => void;
   selectedCount: number;
   isFolder: boolean;
 }
@@ -25,6 +26,7 @@ export function FileContextMenu({
   onCopy,
   onCut,
   onShare,
+  onDownload,
   selectedCount,
   isFolder,
 }: FileContextMenuProps) {
@@ -140,6 +142,19 @@ export function FileContextMenu({
       >
         <Scissors />
         <span>Cut{selectedCount > 1 ? ` (${selectedCount})` : ""}</span>
+      </button>
+
+      <div className={separatorClass} />
+
+      {/* Download */}
+      <button
+        type="button"
+        onClick={() => handleAction(onDownload)}
+        className={menuItemClass}
+        role="menuitem"
+      >
+        <Download />
+        <span>Download{selectedCount > 1 ? ` (${selectedCount})` : ""}</span>
       </button>
 
       {/* Share - only for single file (not folder) */}

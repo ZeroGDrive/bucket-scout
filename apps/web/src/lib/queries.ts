@@ -14,6 +14,8 @@ export const queryKeys = {
     ["preview", accountId, bucket, key] as const,
   thumbnail: (accountId: string, bucket: string, key: string) =>
     ["thumbnail", accountId, bucket, key] as const,
+  metadata: (accountId: string, bucket: string, key: string) =>
+    ["metadata", accountId, bucket, key] as const,
 };
 
 // Account queries
@@ -130,6 +132,25 @@ export function useThumbnail(
   });
 }
 
+// Object metadata query
+export function useObjectMetadata(
+  accountId: string | null,
+  bucket: string | null,
+  key: string | null,
+) {
+  return useQuery({
+    queryKey: queryKeys.metadata(accountId || "", bucket || "", key || ""),
+    queryFn: () =>
+      objects.getMetadata({
+        accountId: accountId!,
+        bucket: bucket!,
+        key: key!,
+      }),
+    enabled: !!accountId && !!bucket && !!key,
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+  });
+}
+
 // Delete mutation
 export function useDeleteObjects() {
   const queryClient = useQueryClient();
@@ -217,7 +238,7 @@ export function useRenameObject() {
   });
 }
 
-// Copy/Move objects mutation
+// Copy/Move objects mutation (same bucket)
 export function useCopyMoveObjects() {
   const queryClient = useQueryClient();
 
@@ -233,6 +254,32 @@ export function useCopyMoveObjects() {
       // Invalidate all object queries for this bucket to refresh the list
       queryClient.invalidateQueries({
         queryKey: ["objects", variables.accountId, variables.bucket],
+      });
+    },
+  });
+}
+
+// Copy/Move objects across buckets mutation
+export function useCopyMoveObjectsAcrossBuckets() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (params: {
+      sourceAccountId: string;
+      sourceBucket: string;
+      destAccountId: string;
+      destBucket: string;
+      sourceKeys: string[];
+      destinationPrefix: string;
+      deleteSource: boolean;
+    }) => objects.copyObjectsAcrossBuckets(params),
+    onSuccess: (_, variables) => {
+      // Invalidate object queries for both source and destination buckets
+      queryClient.invalidateQueries({
+        queryKey: ["objects", variables.sourceAccountId, variables.sourceBucket],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["objects", variables.destAccountId, variables.destBucket],
       });
     },
   });

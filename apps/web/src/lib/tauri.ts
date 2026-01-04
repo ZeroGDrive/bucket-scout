@@ -187,6 +187,40 @@ export const objects = {
       destinationPrefix: params.destinationPrefix,
       deleteSource: params.deleteSource,
     }),
+
+  copyObjectsAcrossBuckets: (params: {
+    sourceAccountId: string;
+    sourceBucket: string;
+    destAccountId: string;
+    destBucket: string;
+    sourceKeys: string[];
+    destinationPrefix: string;
+    deleteSource: boolean;
+  }) =>
+    invoke<CopyMoveResult>("copy_objects_across_buckets", {
+      sourceAccountId: params.sourceAccountId,
+      sourceBucket: params.sourceBucket,
+      destAccountId: params.destAccountId,
+      destBucket: params.destBucket,
+      sourceKeys: params.sourceKeys,
+      destinationPrefix: params.destinationPrefix,
+      deleteSource: params.deleteSource,
+    }),
+
+  downloadFolder: (params: {
+    accountId: string;
+    bucket: string;
+    prefix: string;
+    destination: string;
+    downloadId: string;
+  }) =>
+    invoke<string>("download_folder", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+      prefix: params.prefix,
+      destination: params.destination,
+      downloadId: params.downloadId,
+    }),
 };
 
 // Preview commands

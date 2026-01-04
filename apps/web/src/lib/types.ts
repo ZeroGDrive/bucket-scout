@@ -33,6 +33,11 @@ export interface ObjectMetadata {
   contentType?: string;
   lastModified?: string;
   etag?: string;
+  storageClass?: string;
+  contentEncoding?: string;
+  cacheControl?: string;
+  versionId?: string;
+  metadata?: Record<string, string>;
 }
 
 export type PreviewContent =
@@ -71,6 +76,7 @@ export interface CopyMoveError {
 export interface ClipboardState {
   keys: string[];
   bucket: string;
+  accountId: string;
   operation: "copy" | "cut";
 }
 

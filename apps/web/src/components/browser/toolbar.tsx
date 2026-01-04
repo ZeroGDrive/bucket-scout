@@ -49,7 +49,7 @@ export function Toolbar() {
   const { data } = useObjects(selectedAccountId, selectedBucket, prefix);
   const deleteObjects = useDeleteObjects();
   const createFolder = useCreateFolder();
-  const { queueDownloads } = useDownloadManager();
+  const { queueDownloads, queueFolderDownload } = useDownloadManager();
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [createFolderDialogOpen, setCreateFolderDialogOpen] = useState(false);
@@ -245,23 +245,31 @@ export function Toolbar() {
               <DropdownMenuContent align="end">
                 <DropdownMenuItem
                   onClick={() => {
-                    // Filter out folders - only download files
+                    // Download files directly
                     const fileKeys = selectedItems
                       .filter((item) => !item.isFolder)
                       .map((item) => item.key);
                     if (fileKeys.length > 0) {
                       queueDownloads(fileKeys);
                       toast.success(`Downloading ${fileKeys.length} file(s)`);
-                    } else {
-                      toast.error("No files selected to download");
+                    }
+
+                    // Download folders as ZIP
+                    const folderKeys = selectedItems
+                      .filter((item) => item.isFolder)
+                      .map((item) => item.key);
+                    for (const folderKey of folderKeys) {
+                      queueFolderDownload(folderKey);
+                    }
+
+                    if (fileKeys.length === 0 && folderKeys.length === 0) {
+                      toast.error("No items selected to download");
                     }
                   }}
                 >
                   <Download />
                   Download
-                  {selectedItems.filter((i) => !i.isFolder).length > 1
-                    ? ` (${selectedItems.filter((i) => !i.isFolder).length} files)`
-                    : ""}
+                  {selectedItems.length > 1 ? ` (${selectedItems.length} items)` : ""}
                 </DropdownMenuItem>
                 <DropdownMenuItem variant="destructive" onClick={handleDeleteRequest}>
                   <Trash2 />

@@ -166,6 +166,51 @@ export function useDownloadManager() {
     useDownloadStore.getState().cancelDownload(id);
   }, []);
 
+  // Download a folder as ZIP
+  const queueFolderDownload = useCallback(
+    async (folderKey: string) => {
+      if (!selectedAccountId || !selectedBucket) {
+        toast.error("Please select a bucket first");
+        return;
+      }
+
+      const downloadId = crypto.randomUUID();
+      const folderName = folderKey.trim().replace(/\/$/, "").split("/").pop() || "folder";
+
+      // Add to download queue with folder indicator
+      const item: DownloadItem = {
+        id: downloadId,
+        key: folderKey,
+        fileName: `${folderName}.zip`,
+        status: "downloading",
+        progress: 0,
+        bytesDownloaded: 0,
+        totalBytes: 0,
+        startedAt: Date.now(),
+      };
+
+      addDownloads([item]);
+
+      try {
+        const downloadsPath = await downloadDir();
+
+        const result = await objects.downloadFolder({
+          accountId: selectedAccountId,
+          bucket: selectedBucket,
+          prefix: folderKey,
+          destination: downloadsPath,
+          downloadId,
+        });
+        // Download completed - progress panel shows completion status
+      } catch (error) {
+        console.error("[download] Folder download error:", error);
+        setStatus(downloadId, "failed", String(error));
+        toast.error(`Failed to download folder: ${error}`);
+      }
+    },
+    [selectedAccountId, selectedBucket, addDownloads, setStatus],
+  );
+
   // Watch for new pending downloads and process queue
   useEffect(() => {
     if (pendingCount > 0 && !processingRef.current) {
@@ -175,6 +220,7 @@ export function useDownloadManager() {
 
   return {
     queueDownloads,
+    queueFolderDownload,
     cancelDownload,
   };
 }

@@ -1,4 +1,15 @@
-import { X, FileX, AlertCircle, Download, ExternalLink, Copy, Check, Link } from "lucide-react";
+import {
+  X,
+  FileX,
+  AlertCircle,
+  Download,
+  ExternalLink,
+  Copy,
+  Check,
+  Link,
+  ChevronDown,
+  ChevronRight,
+} from "lucide-react";
 import { useState } from "react";
 import { Image } from "@unpic/react";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -6,10 +17,11 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { useBrowserStore } from "@/lib/store";
-import { usePreview, useAccount } from "@/lib/queries";
+import { usePreview, useAccount, useObjectMetadata } from "@/lib/queries";
 import { useDownloadManager } from "@/hooks/use-download-manager";
 import { toast } from "sonner";
 import { PresignedUrlDialog } from "./presigned-url-dialog";
+import type { ObjectMetadata } from "@/lib/types";
 
 function formatFileSize(bytes: number): string {
   if (bytes === 0) return "0 B";
@@ -21,6 +33,22 @@ function formatFileSize(bytes: number): string {
 function getFileExtension(name: string): string {
   const ext = name.split(".").pop()?.toUpperCase();
   return ext || "FILE";
+}
+
+function formatDate(dateString?: string): string {
+  if (!dateString) return "-";
+  try {
+    const date = new Date(dateString);
+    return date.toLocaleString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return dateString;
+  }
 }
 
 export function PreviewPanel() {
@@ -40,10 +68,12 @@ export function PreviewPanel() {
     isLoading,
     error,
   } = usePreview(selectedAccountId, selectedBucket, selectedFileKey);
+  const { data: metadata } = useObjectMetadata(selectedAccountId, selectedBucket, selectedFileKey);
 
   const { queueDownloads } = useDownloadManager();
   const [copied, setCopied] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [detailsExpanded, setDetailsExpanded] = useState(true);
 
   const fileName = selectedFileKey?.split("/").pop() || "";
   const fileExtension = getFileExtension(fileName);
@@ -106,31 +136,33 @@ export function PreviewPanel() {
 
       {/* Preview Content */}
       <div className="flex-1 min-h-0 overflow-hidden">
-        {isLoading ? (
-          <div className="p-4 space-y-4">
-            <Skeleton className="w-full aspect-video rounded-lg" />
-            <div className="space-y-2">
-              <Skeleton className="h-3 w-3/4" />
-              <Skeleton className="h-3 w-1/2" />
-            </div>
-          </div>
-        ) : error ? (
-          <div className="flex flex-col items-center justify-center h-full p-8 text-muted-foreground">
-            <div className="relative mb-4">
-              <div className="bg-destructive/10 rounded-xl p-4">
-                <AlertCircle className="h-8 w-8 text-destructive/70" strokeWidth={1.5} />
+        <ScrollArea className="h-full">
+          {isLoading ? (
+            <div className="p-4 space-y-4">
+              <Skeleton className="w-full aspect-video rounded-lg" />
+              <div className="space-y-2">
+                <Skeleton className="h-3 w-3/4" />
+                <Skeleton className="h-3 w-1/2" />
               </div>
             </div>
-            <p className="text-sm font-medium mb-1">Failed to load preview</p>
-            <p className="text-xs text-center max-w-[200px] text-muted-foreground/70">
-              {String(error)}
-            </p>
-          </div>
-        ) : preview ? (
-          <ScrollArea className="h-full">
+          ) : error ? (
+            <div className="flex flex-col items-center justify-center p-8 text-muted-foreground">
+              <div className="relative mb-4">
+                <div className="bg-destructive/10 rounded-xl p-4">
+                  <AlertCircle className="h-8 w-8 text-destructive/70" strokeWidth={1.5} />
+                </div>
+              </div>
+              <p className="text-sm font-medium mb-1">Failed to load preview</p>
+              <p className="text-xs text-center max-w-[200px] text-muted-foreground/70">
+                {String(error)}
+              </p>
+            </div>
+          ) : preview ? (
             <PreviewContent data={preview.data} />
-          </ScrollArea>
-        ) : null}
+          ) : null}
+          {/* Metadata Details Section - always show when metadata is available */}
+          {metadata && <MetadataDetails metadata={metadata} expanded={detailsExpanded} onToggle={() => setDetailsExpanded(!detailsExpanded)} />}
+        </ScrollArea>
       </div>
 
       {/* Footer Actions */}
@@ -290,4 +322,78 @@ function PreviewContent({ data }: { data: import("@/lib/types").PreviewContent }
     default:
       return null;
   }
+}
+
+function MetadataDetails({
+  metadata,
+  expanded,
+  onToggle,
+}: {
+  metadata: ObjectMetadata;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const rows: { label: string; value: string | undefined }[] = [
+    { label: "Last Modified", value: formatDate(metadata.lastModified) },
+    { label: "Size", value: formatFileSize(metadata.size) },
+    { label: "Content Type", value: metadata.contentType },
+    { label: "ETag", value: metadata.etag },
+    { label: "Storage Class", value: metadata.storageClass },
+    { label: "Content Encoding", value: metadata.contentEncoding },
+    { label: "Cache Control", value: metadata.cacheControl },
+    { label: "Version ID", value: metadata.versionId },
+  ];
+
+  // Filter out undefined values
+  const definedRows = rows.filter((row) => row.value && row.value !== "-");
+
+  // Custom metadata
+  const customMetadata = metadata.metadata
+    ? Object.entries(metadata.metadata)
+    : [];
+
+  return (
+    <div className="border-t mx-4 mt-4">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex items-center gap-2 w-full py-3 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+      >
+        {expanded ? (
+          <ChevronDown className="h-3.5 w-3.5" />
+        ) : (
+          <ChevronRight className="h-3.5 w-3.5" />
+        )}
+        Details
+      </button>
+      {expanded && (
+        <div className="pb-4 space-y-2">
+          {definedRows.map((row) => (
+            <div key={row.label} className="flex justify-between text-[11px]">
+              <span className="text-muted-foreground">{row.label}</span>
+              <span className="font-mono text-foreground truncate max-w-[60%] text-right">
+                {row.value}
+              </span>
+            </div>
+          ))}
+          {customMetadata.length > 0 && (
+            <>
+              <div className="h-px bg-border my-2" />
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">
+                Custom Metadata
+              </div>
+              {customMetadata.map(([key, value]) => (
+                <div key={key} className="flex justify-between text-[11px]">
+                  <span className="text-muted-foreground">{key}</span>
+                  <span className="font-mono text-foreground truncate max-w-[60%] text-right">
+                    {value}
+                  </span>
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
