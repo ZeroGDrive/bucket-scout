@@ -84,9 +84,9 @@ export function AppSidebar() {
               <Sparkles className="h-4 w-4" />
             </div>
             <div className="flex flex-col group-data-[collapsible=icon]:hidden">
-              <span className="text-sm font-semibold tracking-tight">Amarillo</span>
+              <span className="text-sm font-semibold tracking-tight">BucketScout</span>
               <span className="text-[10px] text-muted-foreground uppercase tracking-widest">
-                R2 Browser
+                S3 Browser
               </span>
             </div>
           </div>
@@ -152,18 +152,31 @@ export function AppSidebar() {
                     </SidebarMenuItem>
                   ))
                 ) : (
-                  <div className="px-2 py-6 text-center">
-                    <p className="text-xs text-muted-foreground mb-2">No accounts configured</p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7 text-xs"
-                      onClick={() => setAddAccountOpen(true)}
-                    >
-                      <Plus className="h-3 w-3 mr-1.5" />
-                      Add Account
-                    </Button>
-                  </div>
+                  <>
+                    {/* Expanded state: show full empty message */}
+                    <div className="px-2 py-6 text-center group-data-[collapsible=icon]:hidden">
+                      <p className="text-xs text-muted-foreground mb-2">No accounts configured</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => setAddAccountOpen(true)}
+                      >
+                        <Plus className="h-3 w-3 mr-1.5" />
+                        Add Account
+                      </Button>
+                    </div>
+                    {/* Collapsed state: show add button as icon */}
+                    <SidebarMenuItem className="hidden group-data-[collapsible=icon]:block">
+                      <SidebarMenuButton
+                        onClick={() => setAddAccountOpen(true)}
+                        tooltip="Add Account"
+                      >
+                        <Plus className="h-4 w-4 shrink-0" />
+                        <span>Add Account</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  </>
                 )}
               </SidebarMenu>
             </SidebarGroupContent>

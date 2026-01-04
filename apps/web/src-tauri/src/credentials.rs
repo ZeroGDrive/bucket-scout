@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::sync::RwLock;
 use uuid::Uuid;
 
-const SERVICE_NAME: &str = "com.s3-browser.credentials";
+const SERVICE_NAME: &str = "com.bucketscout.credentials";
 const ACCOUNTS_KEY: &str = "accounts_metadata";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

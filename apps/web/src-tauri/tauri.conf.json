@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "S3 Browser",
-  "version": "0.1.0",
-  "identifier": "com.zerogdrive.s3-browser",
+  "productName": "BucketScout",
+  "version": "0.2.0",
+  "identifier": "com.zerogdrive.bucketscout",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:3002",
@@ -12,9 +12,11 @@
   "app": {
     "windows": [
       {
-        "title": "S3 Browser",
-        "width": 800,
-        "height": 600,
+        "title": "BucketScout",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 600,
         "resizable": true,
         "fullscreen": false
       }
@@ -39,7 +41,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFENkJCQTUzQTcxOTNBOTMKUldTVE9obW5VN3Byclg5NzBHTzJjMFViZnV2OVNqakZJNXJLK296T2theHBzZUlUeVpvREh3UWoK",
       "endpoints": [
-        "https://github.com/ZeroGDrive/s3-browser/releases/latest/download/latest.json"
+        "https://github.com/ZeroGDrive/bucketscout/releases/latest/download/latest.json"
       ]
     }
   }

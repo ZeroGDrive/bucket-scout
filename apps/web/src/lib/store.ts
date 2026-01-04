@@ -252,7 +252,7 @@ export const useBrowserStore = create<BrowserState>()(
       clearClipboard: () => set({ clipboard: null }),
     }),
     {
-      name: "s3-browser-storage",
+      name: "bucketscout-storage",
       partialize: (state) => ({
         viewMode: state.viewMode,
         sidebarWidth: state.sidebarWidth,

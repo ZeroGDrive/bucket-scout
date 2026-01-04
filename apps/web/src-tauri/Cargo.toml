@@ -33,8 +33,8 @@ aws-credential-types = "1"
 # Async runtime
 tokio = { version = "1", features = ["full"] }
 
-# Secure credential storage
-keyring = { version = "3", features = ["apple-native"] }
+# Secure credential storage (cross-platform with native backends)
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 
 # Utilities
 uuid = { version = "1", features = ["v4"] }
