@@ -108,3 +108,14 @@ export interface UploadFailedPayload {
   uploadId: string;
   error: string;
 }
+
+// Delete types
+export interface DeleteResult {
+  deleted: number;
+  errors: DeleteError[];
+}
+
+export interface DeleteError {
+  key: string;
+  error: string;
+}

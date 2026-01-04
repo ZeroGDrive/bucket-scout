@@ -142,3 +142,19 @@ export function useThumbnail(
     gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
   });
 }
+
+// Delete mutation
+export function useDeleteObjects() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (params: { accountId: string; bucket: string; keys: string[] }) =>
+      objects.delete(params),
+    onSuccess: (_, variables) => {
+      // Invalidate all object queries for this bucket to refresh the list
+      queryClient.invalidateQueries({
+        queryKey: ["objects", variables.accountId, variables.bucket],
+      });
+    },
+  });
+}
