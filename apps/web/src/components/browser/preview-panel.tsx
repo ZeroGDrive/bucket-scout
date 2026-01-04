@@ -291,7 +291,7 @@ function PreviewContent({ data }: { data: import("@/lib/types").PreviewContent }
 
     case "Pdf":
       return (
-        <div className="flex flex-col items-center justify-center h-full p-8 text-muted-foreground">
+        <div className="flex flex-col items-center justify-center py-12 px-8 text-muted-foreground">
           <div className="relative mb-4">
             <div className="bg-muted/50 rounded-xl p-4">
               <FileX className="h-8 w-8 text-muted-foreground/50" strokeWidth={1.5} />
@@ -306,7 +306,7 @@ function PreviewContent({ data }: { data: import("@/lib/types").PreviewContent }
 
     case "Unsupported":
       return (
-        <div className="flex flex-col items-center justify-center h-full p-8 text-muted-foreground">
+        <div className="flex flex-col items-center justify-center py-12 px-8 text-muted-foreground">
           <div className="relative mb-4">
             <div className="bg-muted/50 rounded-xl p-4">
               <FileX className="h-8 w-8 text-muted-foreground/50" strokeWidth={1.5} />

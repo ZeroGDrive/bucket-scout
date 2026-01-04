@@ -333,8 +333,9 @@ export function FileExplorer() {
     }
   }, []);
 
-  // Use a ref to track click timeout for distinguishing single vs double click
+  // Use refs to track click state for distinguishing single vs double click
   const clickTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingClickItemRef = useRef<string | null>(null);
 
   const handleItemClick = useCallback(
     (e: React.MouseEvent, item: FileItem) => {
@@ -347,18 +348,28 @@ export function FileExplorer() {
       // For modifier keys, execute immediately (no delay needed)
       if (e.metaKey || e.ctrlKey) {
         toggleFileSelection(item.key);
+        pendingClickItemRef.current = null;
         return;
       }
       if (e.shiftKey) {
         selectRange(item.key, allKeys);
+        pendingClickItemRef.current = null;
         return;
       }
 
+      // Store which item we're waiting on
+      pendingClickItemRef.current = item.key;
+
       // For regular clicks, delay to allow double-click detection
+      // Use 250ms which is the standard double-click threshold
       clickTimeoutRef.current = setTimeout(() => {
-        selectFile(item.key);
+        // Only select if this is still the pending item (wasn't cancelled by double-click)
+        if (pendingClickItemRef.current === item.key) {
+          selectFile(item.key);
+        }
         clickTimeoutRef.current = null;
-      }, 200);
+        pendingClickItemRef.current = null;
+      }, 250);
     },
     [toggleFileSelection, selectRange, selectFile, allKeys],
   );
@@ -370,6 +381,8 @@ export function FileExplorer() {
         clearTimeout(clickTimeoutRef.current);
         clickTimeoutRef.current = null;
       }
+      // Clear pending click to prevent race conditions
+      pendingClickItemRef.current = null;
 
       if (item.isFolder) {
         navigateTo(item.key);
