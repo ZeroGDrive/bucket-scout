@@ -5,13 +5,13 @@
     "": {
       "name": "s3-browser",
       "dependencies": {
-        "@s3-browser/env": "workspace:*",
+        "@bucket-scout/env": "workspace:*",
         "@unpic/react": "^1.0.2",
         "dotenv": "catalog:",
         "zod": "catalog:",
       },
       "devDependencies": {
-        "@s3-browser/config": "workspace:*",
+        "@bucket-scout/config": "workspace:*",
         "oxfmt": "^0.21.0",
         "oxlint": "^1.34.0",
         "turbo": "^2.6.3",
@@ -23,8 +23,8 @@
       "version": "0.0.0",
       "dependencies": {
         "@base-ui/react": "^1.0.0",
+        "@bucket-scout/env": "workspace:*",
         "@hookform/resolvers": "^5.1.1",
-        "@s3-browser/env": "workspace:*",
         "@tailwindcss/vite": "^4.0.15",
         "@tanstack/react-form": "^1.12.3",
         "@tanstack/react-query": "^5.90.16",
@@ -50,7 +50,7 @@
         "zustand": "^5.0.9",
       },
       "devDependencies": {
-        "@s3-browser/config": "workspace:*",
+        "@bucket-scout/config": "workspace:*",
         "@tanstack/react-router-devtools": "^1.141.1",
         "@tanstack/router-plugin": "^1.141.1",
         "@tauri-apps/cli": "^2.4.0",
@@ -65,11 +65,11 @@
       },
     },
     "packages/config": {
-      "name": "@s3-browser/config",
+      "name": "@bucket-scout/config",
       "version": "0.0.0",
     },
     "packages/env": {
-      "name": "@s3-browser/env",
+      "name": "@bucket-scout/env",
       "version": "0.0.0",
       "dependencies": {
         "@t3-oss/env-core": "^0.13.1",
@@ -77,7 +77,7 @@
         "zod": "catalog:",
       },
       "devDependencies": {
-        "@s3-browser/config": "workspace:*",
+        "@bucket-scout/config": "workspace:*",
         "typescript": "catalog:",
       },
     },
@@ -155,6 +155,10 @@
     "@base-ui/react": ["@base-ui/react@1.0.0", "", { "dependencies": { "@babel/runtime": "^7.28.4", "@base-ui/utils": "0.2.3", "@floating-ui/react-dom": "^2.1.6", "@floating-ui/utils": "^0.2.10", "reselect": "^5.1.1", "tabbable": "^6.3.0", "use-sync-external-store": "^1.6.0" }, "peerDependencies": { "@types/react": "^17 || ^18 || ^19", "react": "^17 || ^18 || ^19", "react-dom": "^17 || ^18 || ^19" }, "optionalPeers": ["@types/react"] }, "sha512-4USBWz++DUSLTuIYpbYkSgy1F9ZmNG9S/lXvlUN6qMK0P0RlW+6eQmDUB4DgZ7HVvtXl4pvi4z5J2fv6Z3+9hg=="],
 
     "@base-ui/utils": ["@base-ui/utils@0.2.3", "", { "dependencies": { "@babel/runtime": "^7.28.4", "@floating-ui/utils": "^0.2.10", "reselect": "^5.1.1", "use-sync-external-store": "^1.6.0" }, "peerDependencies": { "@types/react": "^17 || ^18 || ^19", "react": "^17 || ^18 || ^19", "react-dom": "^17 || ^18 || ^19" }, "optionalPeers": ["@types/react"] }, "sha512-/CguQ2PDaOzeVOkllQR8nocJ0FFIDqsWIcURsVmm53QGo8NhFNpePjNlyPIB41luxfOqnG7PU0xicMEw3ls7XQ=="],
+
+    "@bucket-scout/config": ["@bucket-scout/config@workspace:packages/config"],
+
+    "@bucket-scout/env": ["@bucket-scout/env@workspace:packages/env"],
 
     "@dotenvx/dotenvx": ["@dotenvx/dotenvx@1.51.4", "", { "dependencies": { "commander": "^11.1.0", "dotenv": "^17.2.1", "eciesjs": "^0.4.10", "execa": "^5.1.1", "fdir": "^6.2.0", "ignore": "^5.3.0", "object-treeify": "1.1.33", "picomatch": "^4.0.2", "which": "^4.0.0" }, "bin": { "dotenvx": "src/cli/dotenvx.js" } }, "sha512-AoziS8lRQ3ew/lY5J4JSlzYSN9Fo0oiyMBY37L3Bwq4mOQJT5GSrdZYLFPt6pH1LApDI3ZJceNyx+rHRACZSeQ=="],
 
@@ -381,10 +385,6 @@
     "@rollup/rollup-win32-x64-gnu": ["@rollup/rollup-win32-x64-gnu@4.54.0", "", { "os": "win32", "cpu": "x64" }, "sha512-dzAc53LOuFvHwbCEOS0rPbXp6SIhAf2txMP5p6mGyOXXw5mWY8NGGbPMPrs4P1WItkfApDathBj/NzMLUZ9rtQ=="],
 
     "@rollup/rollup-win32-x64-msvc": ["@rollup/rollup-win32-x64-msvc@4.54.0", "", { "os": "win32", "cpu": "x64" }, "sha512-hYT5d3YNdSh3mbCU1gwQyPgQd3T2ne0A3KG8KSBdav5TiBg6eInVmV+TeR5uHufiIgSFg0XsOWGW5/RhNcSvPg=="],
-
-    "@s3-browser/config": ["@s3-browser/config@workspace:packages/config"],
-
-    "@s3-browser/env": ["@s3-browser/env@workspace:packages/env"],
 
     "@sec-ant/readable-stream": ["@sec-ant/readable-stream@0.4.1", "", {}, "sha512-831qok9r2t8AlxLko40y2ebgSDhenenCatLVeW/uBtnHPyhHOvG0C7TvfgecV+wHzIm5KUICgzmVpWS+IMEAeg=="],
 

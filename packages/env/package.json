@@ -1,5 +1,5 @@
 {
-  "name": "@s3-browser/env",
+  "name": "@bucket-scout/env",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -12,7 +12,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@s3-browser/config": "workspace:*",
+    "@bucket-scout/config": "workspace:*",
     "typescript": "catalog:"
   }
 }

@@ -1,5 +1,5 @@
 {
-  "name": "s3-browser",
+  "name": "bucket-scout",
   "private": true,
   "workspaces": {
     "packages": [
@@ -22,13 +22,13 @@
     "check": "oxlint && oxfmt --write"
   },
   "dependencies": {
-    "@s3-browser/env": "workspace:*",
+    "@bucket-scout/env": "workspace:*",
     "@unpic/react": "^1.0.2",
     "dotenv": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@s3-browser/config": "workspace:*",
+    "@bucket-scout/config": "workspace:*",
     "oxfmt": "^0.21.0",
     "oxlint": "^1.34.0",
     "turbo": "^2.6.3",
