@@ -288,3 +288,60 @@ export interface DownloadFailedPayload {
   downloadId: string;
   error: string;
 }
+
+// Bucket configuration types
+export interface BucketVersioningConfig {
+  status: "Enabled" | "Suspended" | "Disabled" | "Unsupported";
+  mfaDelete?: string;
+}
+
+export interface CorsRuleConfig {
+  allowedHeaders: string[];
+  allowedMethods: string[];
+  allowedOrigins: string[];
+  exposeHeaders: string[];
+  maxAgeSeconds?: number;
+}
+
+export interface BucketCorsConfig {
+  rules: CorsRuleConfig[];
+}
+
+export interface LifecycleTransition {
+  days?: number;
+  storageClass?: string;
+}
+
+export interface LifecycleRuleConfig {
+  id?: string;
+  status: string;
+  prefix?: string;
+  expirationDays?: number;
+  noncurrentVersionExpirationDays?: number;
+  abortIncompleteMultipartUploadDays?: number;
+  transitions: LifecycleTransition[];
+}
+
+export interface BucketLifecycleConfig {
+  rules: LifecycleRuleConfig[];
+}
+
+export interface BucketEncryptionConfig {
+  sseAlgorithm?: string;
+  kmsMasterKeyId?: string;
+  bucketKeyEnabled?: boolean;
+}
+
+export interface BucketLoggingConfig {
+  loggingEnabled: boolean;
+  targetBucket?: string;
+  targetPrefix?: string;
+}
+
+export interface BucketConfigSummary {
+  versioning: BucketVersioningConfig;
+  cors: BucketCorsConfig;
+  lifecycle: BucketLifecycleConfig;
+  encryption: BucketEncryptionConfig;
+  logging: BucketLoggingConfig;
+}

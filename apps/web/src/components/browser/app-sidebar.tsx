@@ -8,6 +8,7 @@ import {
   Trash2,
   RefreshCw,
   Loader2,
+  Settings2,
 } from "lucide-react";
 import { Logo } from "@/components/icons/logo";
 import {
@@ -54,12 +55,20 @@ import {
 } from "@/lib/queries";
 import { AddAccountDialog } from "@/components/accounts/add-account-dialog";
 import { CreateBucketDialog } from "@/components/browser/create-bucket-dialog";
+import { BucketConfigDialog } from "@/components/browser/bucket-config-dialog";
 import { toast } from "sonner";
 import { parseS3Error } from "@/lib/utils";
 
 export function AppSidebar() {
   const [addAccountOpen, setAddAccountOpen] = useState(false);
   const [createBucketOpen, setCreateBucketOpen] = useState(false);
+  const [configBucketDialog, setConfigBucketDialog] = useState<{
+    open: boolean;
+    bucketName: string;
+  }>({
+    open: false,
+    bucketName: "",
+  });
   const [deleteBucketDialog, setDeleteBucketDialog] = useState<{
     open: boolean;
     bucketName: string;
@@ -290,6 +299,15 @@ export function AppSidebar() {
                             <DropdownMenuContent align="end" side="right">
                               <DropdownMenuItem
                                 onClick={() =>
+                                  setConfigBucketDialog({ open: true, bucketName: bucket.name })
+                                }
+                              >
+                                <Settings2 className="h-4 w-4 mr-2" />
+                                Configure
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() =>
                                   setDeleteBucketDialog({ open: true, bucketName: bucket.name })
                                 }
                                 className="text-destructive focus:text-destructive"
@@ -337,6 +355,18 @@ export function AppSidebar() {
           open={createBucketOpen}
           onOpenChange={setCreateBucketOpen}
           accountId={selectedAccountId}
+        />
+      )}
+
+      {selectedAccountId && configBucketDialog.bucketName && (
+        <BucketConfigDialog
+          open={configBucketDialog.open}
+          onOpenChange={(open) =>
+            setConfigBucketDialog({ open, bucketName: open ? configBucketDialog.bucketName : "" })
+          }
+          accountId={selectedAccountId}
+          bucket={configBucketDialog.bucketName}
+          providerType={accounts?.find((a) => a.id === selectedAccountId)?.providerType}
         />
       )}
 

@@ -6,6 +6,8 @@ export const queryKeys = {
   accounts: ["accounts"] as const,
   account: (id: string) => ["accounts", id] as const,
   buckets: (accountId: string) => ["buckets", accountId] as const,
+  bucketConfig: (accountId: string, bucket: string) =>
+    ["bucketConfig", accountId, bucket] as const,
   objects: (accountId: string, bucket: string, prefix: string) =>
     ["objects", accountId, bucket, prefix] as const,
   search: (accountId: string, bucket: string, prefix: string, query: string) =>
@@ -449,6 +451,104 @@ export function useDeleteObjectTags() {
       // Invalidate tags for this specific object
       queryClient.invalidateQueries({
         queryKey: queryKeys.tags(variables.accountId, variables.bucket, variables.key),
+      });
+    },
+  });
+}
+
+// ============================================================================
+// Bucket Configuration Queries
+// ============================================================================
+
+// Get full bucket configuration (versioning, CORS, lifecycle, encryption, logging)
+export function useBucketConfig(accountId: string | null, bucket: string | null) {
+  return useQuery({
+    queryKey: queryKeys.bucketConfig(accountId || "", bucket || ""),
+    queryFn: () =>
+      buckets.getConfig({
+        accountId: accountId!,
+        bucket: bucket!,
+      }),
+    enabled: !!accountId && !!bucket,
+    staleTime: 60_000, // 1 minute - config doesn't change often
+  });
+}
+
+// Toggle versioning mutation
+export function useSetBucketVersioning() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (params: { accountId: string; bucket: string; enabled: boolean }) =>
+      buckets.setVersioning(params),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.bucketConfig(variables.accountId, variables.bucket),
+      });
+    },
+  });
+}
+
+// Set CORS rules mutation
+export function useSetBucketCors() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (params: {
+      accountId: string;
+      bucket: string;
+      rules: import("./types").CorsRuleConfig[];
+    }) => buckets.setCors(params),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.bucketConfig(variables.accountId, variables.bucket),
+      });
+    },
+  });
+}
+
+// Delete CORS configuration mutation
+export function useDeleteBucketCors() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (params: { accountId: string; bucket: string }) => buckets.deleteCors(params),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.bucketConfig(variables.accountId, variables.bucket),
+      });
+    },
+  });
+}
+
+// Set lifecycle rules mutation
+export function useSetBucketLifecycle() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (params: {
+      accountId: string;
+      bucket: string;
+      rules: import("./types").LifecycleRuleConfig[];
+    }) => buckets.setLifecycle(params),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.bucketConfig(variables.accountId, variables.bucket),
+      });
+    },
+  });
+}
+
+// Delete lifecycle configuration mutation
+export function useDeleteBucketLifecycle() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (params: { accountId: string; bucket: string }) =>
+      buckets.deleteLifecycle(params),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.bucketConfig(variables.accountId, variables.bucket),
       });
     },
   });
