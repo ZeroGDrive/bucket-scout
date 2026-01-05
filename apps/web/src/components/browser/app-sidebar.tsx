@@ -11,6 +11,7 @@ import {
   Settings2,
   BarChart3,
   History,
+  Files,
 } from "lucide-react";
 import { Logo } from "@/components/icons/logo";
 import {
@@ -67,6 +68,7 @@ import { CreateBucketDialog } from "@/components/browser/create-bucket-dialog";
 import { BucketConfigDialog } from "@/components/browser/bucket-config-dialog";
 import { BucketAnalyticsDialog } from "@/components/browser/bucket-analytics-dialog";
 import { OperationsHistoryDialog } from "@/components/history";
+import { DuplicateScannerDialog } from "@/components/duplicates";
 import { toast } from "sonner";
 import { parseS3Error } from "@/lib/utils";
 
@@ -95,6 +97,7 @@ export function AppSidebar() {
     bucketName: "",
   });
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
+  const [duplicateScannerOpen, setDuplicateScannerOpen] = useState(false);
   const [forceDelete, setForceDelete] = useState(false);
 
   const selectedAccountId = useBrowserStore((s) => s.selectedAccountId);
@@ -403,8 +406,21 @@ export function AppSidebar() {
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton
+                onClick={() => setDuplicateScannerOpen(true)}
+                tooltip="Find Duplicates"
+                disabled={!selectedBucket}
+                className={!selectedBucket ? "opacity-50 pointer-events-none" : ""}
+              >
+                <Files className="h-4 w-4 shrink-0" />
+                <span>Find Duplicates</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton
                 onClick={() => setHistoryDialogOpen(true)}
                 tooltip="Operations History"
+                disabled={!selectedBucket}
+                className={!selectedBucket ? "opacity-50 pointer-events-none" : ""}
               >
                 <History className="h-4 w-4 shrink-0" />
                 <span>History</span>
@@ -456,6 +472,11 @@ export function AppSidebar() {
         onOpenChange={setHistoryDialogOpen}
       />
 
+      <DuplicateScannerDialog
+        open={duplicateScannerOpen}
+        onOpenChange={setDuplicateScannerOpen}
+      />
+
       <AlertDialog
         open={deleteBucketDialog.open}
         onOpenChange={(open) => {
@@ -485,9 +506,9 @@ export function AppSidebar() {
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleteBucket.isPending}>Cancel</AlertDialogCancel>
             <AlertDialogAction
+              variant="destructive"
               onClick={handleDeleteBucket}
               disabled={deleteBucket.isPending}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleteBucket.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               {deleteBucket.isPending ? "Deleting..." : "Delete"}

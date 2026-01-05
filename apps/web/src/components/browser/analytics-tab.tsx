@@ -2,16 +2,9 @@ import { useState, useEffect } from "react";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  RefreshCw,
-  HardDrive,
-  FileStack,
-  BarChart3,
-  AlertTriangle,
-  Loader2,
-} from "lucide-react";
+import { RefreshCw, HardDrive, FileStack, BarChart3, AlertTriangle, Loader2 } from "lucide-react";
 import { useBucketAnalytics } from "@/lib/queries";
-import { parseS3Error } from "@/lib/utils";
+import { cn, parseS3Error } from "@/lib/utils";
 import { StorageDonutChart, FolderBarChart, LargeFilesTable } from "./analytics-charts";
 import type { AnalyticsProgressPayload } from "@/lib/types";
 
@@ -54,9 +47,7 @@ function AnalyticsLoadingState({ progress }: { progress: AnalyticsProgressPayloa
           <p className="text-sm text-muted-foreground">
             Processed {progress.objectsProcessed.toLocaleString()} objects
             {progress.currentPrefix && (
-              <span className="block text-xs mt-1 font-mono">
-                {progress.currentPrefix}
-              </span>
+              <span className="block text-xs mt-1 font-mono">{progress.currentPrefix}</span>
             )}
           </p>
         ) : (
@@ -73,13 +64,7 @@ function AnalyticsLoadingState({ progress }: { progress: AnalyticsProgressPayloa
 }
 
 // Error State
-function AnalyticsErrorState({
-  error,
-  onRetry,
-}: {
-  error: unknown;
-  onRetry: () => void;
-}) {
+function AnalyticsErrorState({ error, onRetry }: { error: unknown; onRetry: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center py-12 text-center">
       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 mb-4">
@@ -231,23 +216,11 @@ export function AnalyticsTab({ accountId, bucket }: AnalyticsTabProps) {
 
       {/* Recalculate Button */}
       <div className="flex justify-end">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => refetch()}
-          disabled={isFetching}
-        >
-          {isFetching ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Calculating...
-            </>
-          ) : (
-            <>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Recalculate
-            </>
-          )}
+        <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+          <>
+            <RefreshCw className={cn("h-4 w-4 mr-2 ", isFetching && "animate-spin")} />
+            Recalculate
+          </>
         </Button>
       </div>
     </div>

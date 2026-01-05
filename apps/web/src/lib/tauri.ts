@@ -32,6 +32,12 @@ import type {
   OperationStats,
   OperationStatus,
   LogOperationInput,
+  // Duplicate types
+  DuplicateScan,
+  DuplicateGroup,
+  ScanSummary,
+  HashType,
+  DeleteDuplicatesResult,
 } from "./types";
 
 // Credentials commands
@@ -480,5 +486,51 @@ export const history = {
       status: params.status,
       durationMs: params.durationMs,
       errorMessage: params.errorMessage,
+    }),
+};
+
+// Duplicate detection commands
+export const duplicates = {
+  startScan: (params: {
+    accountId: string;
+    bucket: string;
+    prefix?: string;
+    hashType: HashType;
+    minFileSize?: number;
+  }) =>
+    invoke<number>("start_duplicate_scan", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+      prefix: params.prefix,
+      hashType: params.hashType,
+      minFileSize: params.minFileSize,
+    }),
+
+  cancelScan: (scanId: number) => invoke<void>("cancel_duplicate_scan", { scanId }),
+
+  getScan: (scanId: number) => invoke<DuplicateScan | null>("get_scan", { scanId }),
+
+  getGroups: (scanId: number) => invoke<DuplicateGroup[]>("get_duplicate_groups", { scanId }),
+
+  listScans: (params: { accountId: string; bucket?: string; limit?: number }) =>
+    invoke<ScanSummary[]>("list_scans", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+      limit: params.limit,
+    }),
+
+  deleteScan: (scanId: number) => invoke<void>("delete_scan", { scanId }),
+
+  deleteDuplicates: (params: {
+    accountId: string;
+    bucket: string;
+    scanId: number;
+    keysToDelete: string[];
+  }) =>
+    invoke<DeleteDuplicatesResult>("delete_duplicates", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+      scanId: params.scanId,
+      keysToDelete: params.keysToDelete,
     }),
 };

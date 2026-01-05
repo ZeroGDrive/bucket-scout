@@ -5,6 +5,7 @@ mod error;
 pub mod provider;
 mod s3;
 
+use commands::duplicates::ScanState;
 use credentials::CredentialsManager;
 use db::DbManager;
 use s3::client::S3ClientManager;
@@ -22,6 +23,7 @@ pub fn run() {
         .manage(CredentialsManager::new())
         .manage(S3ClientManager::new())
         .manage(db_manager)
+        .manage(ScanState::default())
         .invoke_handler(tauri::generate_handler![
             // Credentials commands
             commands::credentials::add_account,
@@ -77,6 +79,14 @@ pub fn run() {
             commands::history::export_operations,
             commands::history::log_operation,
             commands::history::update_operation,
+            // Duplicate detection commands
+            commands::duplicates::start_duplicate_scan,
+            commands::duplicates::cancel_duplicate_scan,
+            commands::duplicates::get_scan,
+            commands::duplicates::get_duplicate_groups,
+            commands::duplicates::list_scans,
+            commands::duplicates::delete_scan,
+            commands::duplicates::delete_duplicates,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

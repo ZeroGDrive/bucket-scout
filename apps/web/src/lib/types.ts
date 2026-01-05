@@ -458,3 +458,82 @@ export interface LogOperationInput {
   durationMs?: number;
   errorMessage?: string;
 }
+
+// Duplicate Detection types
+export type HashType = "etag" | "sha256";
+export type ScanStatus = "running" | "completed" | "failed" | "cancelled";
+
+export interface DuplicateScan {
+  id: number;
+  accountId: string;
+  bucket: string;
+  prefix: string;
+  startedAt: number;
+  completedAt?: number;
+  status: ScanStatus;
+  totalFiles: number;
+  totalSize: number;
+  duplicateGroups: number;
+  duplicateFiles: number;
+  reclaimableBytes: number;
+  errorMessage?: string;
+}
+
+export interface DuplicateGroup {
+  id: number;
+  scanId: number;
+  contentHash: string;
+  hashType: HashType;
+  fileSize: number;
+  fileCount: number;
+  files: DuplicateFile[];
+}
+
+export interface DuplicateFile {
+  id: number;
+  groupId: number;
+  key: string;
+  etag?: string;
+  lastModified?: number;
+  storageClass?: string;
+}
+
+export interface ScanSummary {
+  id: number;
+  accountId: string;
+  bucket: string;
+  prefix: string;
+  startedAt: number;
+  status: ScanStatus;
+  totalFiles: number;
+  duplicateGroups: number;
+  reclaimableBytes: number;
+}
+
+export interface DeleteDuplicatesResult {
+  deletedCount: number;
+  freedBytes: number;
+  errors: { key: string; error: string }[];
+}
+
+// Scan progress events
+export interface ScanProgressPayload {
+  scanId: number;
+  phase: string;
+  filesScanned: number;
+  totalFiles: number;
+  currentFile?: string;
+  bytesProcessed: number;
+}
+
+export interface ScanCompletePayload {
+  scanId: number;
+  duplicateGroups: number;
+  duplicateFiles: number;
+  reclaimableBytes: number;
+}
+
+export interface ScanErrorPayload {
+  scanId: number;
+  error: string;
+}

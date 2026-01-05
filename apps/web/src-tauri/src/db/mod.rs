@@ -1,3 +1,4 @@
+pub mod duplicates;
 pub mod migrations;
 pub mod operations;
 
@@ -8,6 +9,7 @@ use std::path::PathBuf;
 use crate::error::{AppError, Result};
 
 /// Database manager with connection pooling
+#[derive(Clone)]
 pub struct DbManager {
     pool: Pool<SqliteConnectionManager>,
 }

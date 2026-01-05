@@ -248,7 +248,7 @@ export function OperationsHistoryDialog({
                   Operations History
                 </DialogTitle>
                 <DialogDescription className="text-sm text-muted-foreground">
-                  View and export your S3 operation history
+                  {selectedBucket ? `History for ${selectedBucket}` : "All buckets"}
                 </DialogDescription>
               </div>
             </div>

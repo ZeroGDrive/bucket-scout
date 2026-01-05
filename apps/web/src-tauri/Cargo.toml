@@ -74,6 +74,7 @@ dirs = "5"
 # Content hashing (for sync and duplicate detection)
 sha2 = "0.10"
 crc32fast = "1.4"
+hex = "0.4"
 
 # File system watching (for sync)
 notify = "6.1"

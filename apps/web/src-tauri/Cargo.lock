@@ -122,6 +122,7 @@ dependencies = [
  "chrono",
  "crc32fast",
  "dirs 5.0.1",
+ "hex",
  "image",
  "keyring",
  "log",
