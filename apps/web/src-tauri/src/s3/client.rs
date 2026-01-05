@@ -1,4 +1,5 @@
 use crate::error::Result;
+use crate::provider::ProviderType;
 use aws_credential_types::Credentials;
 use aws_sdk_s3::config::{BehaviorVersion, Region};
 use aws_sdk_s3::Client;
@@ -23,6 +24,8 @@ impl S3ClientManager {
         endpoint: &str,
         access_key_id: &str,
         secret_access_key: &str,
+        provider_type: ProviderType,
+        region: Option<&str>,
     ) -> Result<Arc<Client>> {
         // Check if client exists in cache
         {
@@ -34,7 +37,7 @@ impl S3ClientManager {
 
         // Create new client
         let client = self
-            .create_client(endpoint, access_key_id, secret_access_key)
+            .create_client(endpoint, access_key_id, secret_access_key, provider_type, region)
             .await?;
         let client = Arc::new(client);
 
@@ -52,24 +55,33 @@ impl S3ClientManager {
         endpoint: &str,
         access_key_id: &str,
         secret_access_key: &str,
+        provider_type: ProviderType,
+        region: Option<&str>,
     ) -> Result<Client> {
         let credentials = Credentials::new(
             access_key_id,
             secret_access_key,
             None, // session token
             None, // expiration
-            "s3-browser",
+            "bucketscout",
         );
 
-        let config = aws_sdk_s3::Config::builder()
-            .behavior_version(BehaviorVersion::latest())
-            .endpoint_url(endpoint)
-            .region(Region::new("auto")) // R2 uses "auto" region
-            .credentials_provider(credentials)
-            .force_path_style(true) // Required for R2 compatibility
-            .build();
+        // Use provided region or default for the provider
+        let region_str = region.unwrap_or(provider_type.default_region());
 
-        Ok(Client::from_conf(config))
+        let mut config_builder = aws_sdk_s3::Config::builder()
+            .behavior_version(BehaviorVersion::latest())
+            .region(Region::new(region_str.to_string()))
+            .credentials_provider(credentials)
+            .force_path_style(provider_type.force_path_style());
+
+        // Only set endpoint for providers that need it (R2, MinIO, etc.)
+        // AWS S3 uses the default endpoint based on region
+        if !endpoint.is_empty() {
+            config_builder = config_builder.endpoint_url(endpoint);
+        }
+
+        Ok(Client::from_conf(config_builder.build()))
     }
 
     pub fn remove_client(&self, account_id: &str) {
@@ -79,23 +91,10 @@ impl S3ClientManager {
             clients.remove(account_id);
         }
     }
-
-    pub async fn clear_all(&self) {
-        let mut clients = self.clients.write().await;
-        clients.clear();
-    }
 }
 
 impl Default for S3ClientManager {
     fn default() -> Self {
         Self::new()
     }
-}
-
-// Helper to get R2 endpoint from account ID
-pub fn get_r2_endpoint(cloudflare_account_id: &str) -> String {
-    format!(
-        "https://{}.r2.cloudflarestorage.com",
-        cloudflare_account_id
-    )
 }

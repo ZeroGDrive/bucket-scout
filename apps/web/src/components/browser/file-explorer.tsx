@@ -1,4 +1,4 @@
-import { useMemo, memo, useState, useCallback, useEffect, useRef } from "react";
+import { useMemo, memo, useState, useCallback, useEffect } from "react";
 import {
   Folder,
   File,
@@ -333,61 +333,30 @@ export function FileExplorer() {
     }
   }, []);
 
-  // Use refs to track click state for distinguishing single vs double click
-  const clickTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingClickItemRef = useRef<string | null>(null);
-
   const handleItemClick = useCallback(
     (e: React.MouseEvent, item: FileItem) => {
-      // Clear any pending click timeout
-      if (clickTimeoutRef.current) {
-        clearTimeout(clickTimeoutRef.current);
-        clickTimeoutRef.current = null;
-      }
-
-      // For modifier keys, execute immediately (no delay needed)
+      // Handle modifier keys for multi-selection
       if (e.metaKey || e.ctrlKey) {
         toggleFileSelection(item.key);
-        pendingClickItemRef.current = null;
         return;
       }
       if (e.shiftKey) {
         selectRange(item.key, allKeys);
-        pendingClickItemRef.current = null;
         return;
       }
 
-      // Store which item we're waiting on
-      pendingClickItemRef.current = item.key;
-
-      // For regular clicks, delay to allow double-click detection
-      // Use 250ms which is the standard double-click threshold
-      clickTimeoutRef.current = setTimeout(() => {
-        // Only select if this is still the pending item (wasn't cancelled by double-click)
-        if (pendingClickItemRef.current === item.key) {
-          selectFile(item.key);
-        }
-        clickTimeoutRef.current = null;
-        pendingClickItemRef.current = null;
-      }, 250);
+      // Regular click - select immediately (no delay)
+      selectFile(item.key);
     },
     [toggleFileSelection, selectRange, selectFile, allKeys],
   );
 
   const handleItemDoubleClick = useCallback(
     (item: FileItem) => {
-      // Clear the single click timeout to prevent selection
-      if (clickTimeoutRef.current) {
-        clearTimeout(clickTimeoutRef.current);
-        clickTimeoutRef.current = null;
-      }
-      // Clear pending click to prevent race conditions
-      pendingClickItemRef.current = null;
-
       if (item.isFolder) {
         navigateTo(item.key);
       } else {
-        // Select the file and open preview
+        // Open preview on double-click
         selectFile(item.key);
         setPreviewPanelOpen(true);
       }

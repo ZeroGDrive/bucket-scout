@@ -44,7 +44,9 @@ export function useAddAccount() {
       endpoint: string;
       accessKeyId: string;
       secretAccessKey: string;
-      accountId: string;
+      providerType: import("./types").ProviderType;
+      cloudflareAccountId?: string;
+      region?: string;
     }) => credentials.add(params),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
@@ -75,6 +77,31 @@ export function useBuckets(accountId: string | null) {
     queryKey: queryKeys.buckets(accountId || ""),
     queryFn: () => buckets.list(accountId!),
     enabled: !!accountId,
+  });
+}
+
+// Bucket mutations
+export function useCreateBucket() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (params: { accountId: string; bucketName: string; location?: string }) =>
+      buckets.create(params),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.buckets(variables.accountId) });
+    },
+  });
+}
+
+export function useDeleteBucket() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (params: { accountId: string; bucketName: string; force: boolean }) =>
+      buckets.delete(params),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.buckets(variables.accountId) });
+    },
   });
 }
 
@@ -280,6 +307,34 @@ export function useCopyMoveObjectsAcrossBuckets() {
       });
       queryClient.invalidateQueries({
         queryKey: ["objects", variables.destAccountId, variables.destBucket],
+      });
+    },
+  });
+}
+
+// Update object metadata mutation
+export function useUpdateObjectMetadata() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (params: {
+      accountId: string;
+      bucket: string;
+      key: string;
+      contentType?: string;
+      cacheControl?: string;
+      contentDisposition?: string;
+      contentEncoding?: string;
+      customMetadata?: Record<string, string>;
+    }) => objects.updateMetadata(params),
+    onSuccess: (_, variables) => {
+      // Invalidate metadata query for this specific object
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.metadata(variables.accountId, variables.bucket, variables.key),
+      });
+      // Also invalidate preview in case content-type changed
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.preview(variables.accountId, variables.bucket, variables.key),
       });
     },
   });

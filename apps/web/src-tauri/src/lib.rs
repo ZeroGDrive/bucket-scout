@@ -1,6 +1,7 @@
 mod commands;
 mod credentials;
 mod error;
+pub mod provider;
 mod s3;
 
 use credentials::CredentialsManager;
@@ -25,6 +26,8 @@ pub fn run() {
             commands::credentials::test_connection,
             // Bucket commands
             commands::buckets::list_buckets,
+            commands::buckets::create_bucket,
+            commands::buckets::delete_bucket,
             // Object commands
             commands::objects::list_objects,
             commands::objects::get_object_metadata,
@@ -38,6 +41,7 @@ pub fn run() {
             commands::objects::copy_objects,
             commands::objects::copy_objects_across_buckets,
             commands::objects::download_folder,
+            commands::objects::update_object_metadata,
             // Preview commands
             commands::preview::get_preview,
             commands::preview::get_thumbnail,

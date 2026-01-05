@@ -11,6 +11,7 @@ import type {
   PresignedUrlResult,
   RenameResult,
   CopyMoveResult,
+  ProviderType,
 } from "./types";
 
 // Credentials commands
@@ -20,14 +21,18 @@ export const credentials = {
     endpoint: string;
     accessKeyId: string;
     secretAccessKey: string;
-    accountId: string;
+    providerType: ProviderType;
+    cloudflareAccountId?: string;
+    region?: string;
   }) =>
     invoke<Account>("add_account", {
       name: params.name,
       endpoint: params.endpoint,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,
-      accountId: params.accountId,
+      providerType: params.providerType,
+      cloudflareAccountId: params.cloudflareAccountId,
+      region: params.region,
     }),
 
   list: () => invoke<Account[]>("list_accounts"),
@@ -42,7 +47,9 @@ export const credentials = {
     endpoint?: string;
     accessKeyId?: string;
     secretAccessKey?: string;
-    accountId?: string;
+    providerType?: ProviderType;
+    cloudflareAccountId?: string;
+    region?: string;
   }) =>
     invoke<Account>("update_account", {
       id: params.id,
@@ -50,7 +57,9 @@ export const credentials = {
       endpoint: params.endpoint,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,
-      accountId: params.accountId,
+      providerType: params.providerType,
+      cloudflareAccountId: params.cloudflareAccountId,
+      region: params.region,
     }),
 
   testConnection: (id: string) => invoke<boolean>("test_connection", { id }),
@@ -59,6 +68,18 @@ export const credentials = {
 // Bucket commands
 export const buckets = {
   list: (accountId: string) => invoke<Bucket[]>("list_buckets", { accountId }),
+  create: (params: { accountId: string; bucketName: string; location?: string }) =>
+    invoke<void>("create_bucket", {
+      accountId: params.accountId,
+      bucketName: params.bucketName,
+      location: params.location,
+    }),
+  delete: (params: { accountId: string; bucketName: string; force: boolean }) =>
+    invoke<void>("delete_bucket", {
+      accountId: params.accountId,
+      bucketName: params.bucketName,
+      force: params.force,
+    }),
 };
 
 // Object commands
@@ -220,6 +241,27 @@ export const objects = {
       prefix: params.prefix,
       destination: params.destination,
       downloadId: params.downloadId,
+    }),
+
+  updateMetadata: (params: {
+    accountId: string;
+    bucket: string;
+    key: string;
+    contentType?: string;
+    cacheControl?: string;
+    contentDisposition?: string;
+    contentEncoding?: string;
+    customMetadata?: Record<string, string>;
+  }) =>
+    invoke<ObjectMetadata>("update_object_metadata", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+      key: params.key,
+      contentType: params.contentType,
+      cacheControl: params.cacheControl,
+      contentDisposition: params.contentDisposition,
+      contentEncoding: params.contentEncoding,
+      customMetadata: params.customMetadata,
     }),
 };
 

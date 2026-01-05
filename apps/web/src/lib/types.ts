@@ -1,10 +1,66 @@
+export type ProviderType = "cloudflare_r2" | "aws_s3";
+
 export interface Account {
   id: string;
   name: string;
   endpoint: string;
   accessKeyId: string;
-  accountId: string; // R2 Cloudflare account ID
+  providerType: ProviderType;
+  // Provider-specific fields
+  cloudflareAccountId?: string; // R2 only
+  region?: string; // AWS S3
+  // Legacy field for backwards compatibility
+  accountId?: string;
 }
+
+// Provider configuration for UI
+export interface ProviderConfig {
+  value: ProviderType;
+  label: string;
+  description: string;
+}
+
+export const PROVIDERS: ProviderConfig[] = [
+  {
+    value: "cloudflare_r2",
+    label: "Cloudflare R2",
+    description: "S3-compatible object storage from Cloudflare",
+  },
+  {
+    value: "aws_s3",
+    label: "Amazon S3",
+    description: "Amazon Web Services S3",
+  },
+];
+
+// R2 location hints for bucket creation
+export const R2_LOCATIONS = [
+  { value: "wnam", label: "Western North America" },
+  { value: "enam", label: "Eastern North America" },
+  { value: "weur", label: "Western Europe" },
+  { value: "eeur", label: "Eastern Europe" },
+  { value: "apac", label: "Asia-Pacific" },
+] as const;
+
+// Common AWS S3 regions
+export const AWS_REGIONS = [
+  { value: "us-east-1", label: "US East (N. Virginia)" },
+  { value: "us-east-2", label: "US East (Ohio)" },
+  { value: "us-west-1", label: "US West (N. California)" },
+  { value: "us-west-2", label: "US West (Oregon)" },
+  { value: "eu-west-1", label: "Europe (Ireland)" },
+  { value: "eu-west-2", label: "Europe (London)" },
+  { value: "eu-west-3", label: "Europe (Paris)" },
+  { value: "eu-central-1", label: "Europe (Frankfurt)" },
+  { value: "eu-north-1", label: "Europe (Stockholm)" },
+  { value: "ap-northeast-1", label: "Asia Pacific (Tokyo)" },
+  { value: "ap-northeast-2", label: "Asia Pacific (Seoul)" },
+  { value: "ap-southeast-1", label: "Asia Pacific (Singapore)" },
+  { value: "ap-southeast-2", label: "Asia Pacific (Sydney)" },
+  { value: "ap-south-1", label: "Asia Pacific (Mumbai)" },
+  { value: "sa-east-1", label: "South America (São Paulo)" },
+  { value: "ca-central-1", label: "Canada (Central)" },
+] as const;
 
 export interface Bucket {
   name: string;

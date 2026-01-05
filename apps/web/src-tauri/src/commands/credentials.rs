@@ -1,5 +1,6 @@
 use crate::credentials::{Account, CredentialsManager};
 use crate::error::AppError;
+use crate::provider::ProviderType;
 use crate::s3::client::S3ClientManager;
 use tauri::State;
 
@@ -10,9 +11,19 @@ pub async fn add_account(
     endpoint: String,
     access_key_id: String,
     secret_access_key: String,
-    account_id: String,
+    provider_type: ProviderType,
+    cloudflare_account_id: Option<String>,
+    region: Option<String>,
 ) -> Result<Account, AppError> {
-    credentials.add_account(name, endpoint, access_key_id, secret_access_key, account_id)
+    credentials.add_account(
+        name,
+        endpoint,
+        access_key_id,
+        secret_access_key,
+        provider_type,
+        cloudflare_account_id,
+        region,
+    )
 }
 
 #[tauri::command]
@@ -51,14 +62,30 @@ pub async fn update_account(
     endpoint: Option<String>,
     access_key_id: Option<String>,
     secret_access_key: Option<String>,
-    account_id: Option<String>,
+    provider_type: Option<ProviderType>,
+    cloudflare_account_id: Option<String>,
+    region: Option<String>,
 ) -> Result<Account, AppError> {
-    // Invalidate cached S3 client if credentials changed
-    if access_key_id.is_some() || secret_access_key.is_some() || endpoint.is_some() {
+    // Invalidate cached S3 client if credentials or provider config changed
+    if access_key_id.is_some()
+        || secret_access_key.is_some()
+        || endpoint.is_some()
+        || provider_type.is_some()
+        || region.is_some()
+    {
         s3_clients.remove_client(&id);
     }
 
-    credentials.update_account(&id, name, endpoint, access_key_id, secret_access_key, account_id)
+    credentials.update_account(
+        &id,
+        name,
+        endpoint,
+        access_key_id,
+        secret_access_key,
+        provider_type,
+        cloudflare_account_id,
+        region,
+    )
 }
 
 #[tauri::command]
@@ -71,7 +98,14 @@ pub async fn test_connection(
     let secret = credentials.get_secret_key(&id)?;
 
     let client = s3_clients
-        .get_or_create_client(&id, &account.endpoint, &account.access_key_id, &secret)
+        .get_or_create_client(
+            &id,
+            &account.endpoint,
+            &account.access_key_id,
+            &secret,
+            account.provider_type,
+            account.region.as_deref(),
+        )
         .await?;
 
     // Try to list buckets as a connection test
