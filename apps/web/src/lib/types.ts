@@ -345,3 +345,46 @@ export interface BucketConfigSummary {
   encryption: BucketEncryptionConfig;
   logging: BucketLoggingConfig;
 }
+
+// Storage Analytics types
+export interface FolderStats {
+  prefix: string;
+  name: string;
+  size: number;
+  objectCount: number;
+}
+
+export interface ContentTypeStats {
+  contentType: string;
+  size: number;
+  objectCount: number;
+}
+
+export interface StorageClassStats {
+  storageClass: string;
+  size: number;
+  objectCount: number;
+}
+
+export interface LargeFile {
+  key: string;
+  size: number;
+  lastModified?: string;
+  storageClass?: string;
+}
+
+export interface BucketAnalytics {
+  totalSize: number;
+  totalObjects: number;
+  folders: FolderStats[];
+  byContentType: ContentTypeStats[];
+  byStorageClass: StorageClassStats[];
+  largestFiles: LargeFile[];
+  calculatedAt: string;
+}
+
+// Analytics progress event
+export interface AnalyticsProgressPayload {
+  objectsProcessed: number;
+  currentPrefix: string;
+}

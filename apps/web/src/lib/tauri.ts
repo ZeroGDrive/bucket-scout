@@ -24,6 +24,7 @@ import type {
   BucketLoggingConfig,
   CorsRuleConfig,
   LifecycleRuleConfig,
+  BucketAnalytics,
 } from "./types";
 
 // Credentials commands
@@ -165,6 +166,21 @@ export const buckets = {
     invoke<BucketLoggingConfig>("get_bucket_logging", {
       accountId: params.accountId,
       bucket: params.bucket,
+    }),
+
+  getAnalytics: (params: {
+    accountId: string;
+    bucket: string;
+    prefix?: string;
+    topNLargest?: number;
+    topNFolders?: number;
+  }) =>
+    invoke<BucketAnalytics>("get_bucket_analytics", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+      prefix: params.prefix,
+      topNLargest: params.topNLargest,
+      topNFolders: params.topNFolders,
     }),
 };
 

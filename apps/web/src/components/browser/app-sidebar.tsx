@@ -9,6 +9,7 @@ import {
   RefreshCw,
   Loader2,
   Settings2,
+  BarChart3,
 } from "lucide-react";
 import { Logo } from "@/components/icons/logo";
 import {
@@ -34,6 +35,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -56,6 +64,7 @@ import {
 import { AddAccountDialog } from "@/components/accounts/add-account-dialog";
 import { CreateBucketDialog } from "@/components/browser/create-bucket-dialog";
 import { BucketConfigDialog } from "@/components/browser/bucket-config-dialog";
+import { BucketAnalyticsDialog } from "@/components/browser/bucket-analytics-dialog";
 import { toast } from "sonner";
 import { parseS3Error } from "@/lib/utils";
 
@@ -70,6 +79,13 @@ export function AppSidebar() {
     bucketName: "",
   });
   const [deleteBucketDialog, setDeleteBucketDialog] = useState<{
+    open: boolean;
+    bucketName: string;
+  }>({
+    open: false,
+    bucketName: "",
+  });
+  const [analyticsBucketDialog, setAnalyticsBucketDialog] = useState<{
     open: boolean;
     bucketName: string;
   }>({
@@ -284,14 +300,46 @@ export function AppSidebar() {
                     ) : buckets && buckets.length > 0 ? (
                       buckets.map((bucket) => (
                         <SidebarMenuItem key={bucket.name}>
-                          <SidebarMenuButton
-                            isActive={selectedBucket === bucket.name}
-                            onClick={() => setBucket(bucket.name)}
-                            tooltip={bucket.name}
-                          >
-                            <FolderOpen className="h-4 w-4 shrink-0" />
-                            <span className="truncate">{bucket.name}</span>
-                          </SidebarMenuButton>
+                          <ContextMenu>
+                            <ContextMenuTrigger className="w-full">
+                              <SidebarMenuButton
+                                isActive={selectedBucket === bucket.name}
+                                onClick={() => setBucket(bucket.name)}
+                                tooltip={bucket.name}
+                              >
+                                <FolderOpen className="h-4 w-4 shrink-0" />
+                                <span className="truncate">{bucket.name}</span>
+                              </SidebarMenuButton>
+                            </ContextMenuTrigger>
+                            <ContextMenuContent>
+                              <ContextMenuItem
+                                onClick={() =>
+                                  setConfigBucketDialog({ open: true, bucketName: bucket.name })
+                                }
+                              >
+                                <Settings2 className="h-4 w-4 mr-2" />
+                                Configure
+                              </ContextMenuItem>
+                              <ContextMenuItem
+                                onClick={() =>
+                                  setAnalyticsBucketDialog({ open: true, bucketName: bucket.name })
+                                }
+                              >
+                                <BarChart3 className="h-4 w-4 mr-2" />
+                                Analytics
+                              </ContextMenuItem>
+                              <ContextMenuSeparator />
+                              <ContextMenuItem
+                                onClick={() =>
+                                  setDeleteBucketDialog({ open: true, bucketName: bucket.name })
+                                }
+                                variant="destructive"
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete Bucket
+                              </ContextMenuItem>
+                            </ContextMenuContent>
+                          </ContextMenu>
                           <DropdownMenu>
                             <DropdownMenuTrigger className="absolute right-1 top-1.5 flex aspect-square w-5 items-center justify-center rounded-sm p-0 text-sidebar-foreground ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 outline-hidden transition-transform opacity-0 group-hover/menu-item:opacity-100 data-[open]:opacity-100 group-data-[collapsible=icon]:hidden">
                               <MoreVertical className="h-4 w-4" />
@@ -304,6 +352,14 @@ export function AppSidebar() {
                               >
                                 <Settings2 className="h-4 w-4 mr-2" />
                                 Configure
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  setAnalyticsBucketDialog({ open: true, bucketName: bucket.name })
+                                }
+                              >
+                                <BarChart3 className="h-4 w-4 mr-2" />
+                                Analytics
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
@@ -367,6 +423,17 @@ export function AppSidebar() {
           accountId={selectedAccountId}
           bucket={configBucketDialog.bucketName}
           providerType={accounts?.find((a) => a.id === selectedAccountId)?.providerType}
+        />
+      )}
+
+      {selectedAccountId && analyticsBucketDialog.bucketName && (
+        <BucketAnalyticsDialog
+          open={analyticsBucketDialog.open}
+          onOpenChange={(open) =>
+            setAnalyticsBucketDialog({ open, bucketName: open ? analyticsBucketDialog.bucketName : "" })
+          }
+          accountId={selectedAccountId}
+          bucket={analyticsBucketDialog.bucketName}
         />
       )}
 

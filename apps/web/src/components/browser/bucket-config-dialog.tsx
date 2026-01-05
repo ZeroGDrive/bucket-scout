@@ -45,7 +45,6 @@ import type {
   ProviderType,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
-
 type ConfigTab = "overview" | "versioning" | "cors" | "lifecycle";
 
 interface BucketConfigDialogProps {

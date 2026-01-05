@@ -39,6 +39,8 @@ pub fn run() {
             commands::buckets::delete_bucket_lifecycle,
             commands::buckets::get_bucket_encryption,
             commands::buckets::get_bucket_logging,
+            // Analytics commands
+            commands::analytics::get_bucket_analytics,
             // Object commands
             commands::objects::list_objects,
             commands::objects::get_object_metadata,

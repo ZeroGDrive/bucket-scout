@@ -8,6 +8,8 @@ export const queryKeys = {
   buckets: (accountId: string) => ["buckets", accountId] as const,
   bucketConfig: (accountId: string, bucket: string) =>
     ["bucketConfig", accountId, bucket] as const,
+  bucketAnalytics: (accountId: string, bucket: string) =>
+    ["bucketAnalytics", accountId, bucket] as const,
   objects: (accountId: string, bucket: string, prefix: string) =>
     ["objects", accountId, bucket, prefix] as const,
   search: (accountId: string, bucket: string, prefix: string, query: string) =>
@@ -551,5 +553,30 @@ export function useDeleteBucketLifecycle() {
         queryKey: queryKeys.bucketConfig(variables.accountId, variables.bucket),
       });
     },
+  });
+}
+
+// ============================================================================
+// Bucket Analytics Queries
+// ============================================================================
+
+// Get bucket analytics (folder sizes, type breakdown, large files)
+export function useBucketAnalytics(
+  accountId: string | null,
+  bucket: string | null,
+  options?: { enabled?: boolean },
+) {
+  return useQuery({
+    queryKey: queryKeys.bucketAnalytics(accountId || "", bucket || ""),
+    queryFn: () =>
+      buckets.getAnalytics({
+        accountId: accountId!,
+        bucket: bucket!,
+        topNLargest: 20,
+        topNFolders: 10,
+      }),
+    enabled: options?.enabled !== false && !!accountId && !!bucket,
+    staleTime: 5 * 60 * 1000, // 5 minutes - analytics are expensive to compute
+    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
   });
 }
