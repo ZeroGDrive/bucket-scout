@@ -12,6 +12,10 @@ import type {
   RenameResult,
   CopyMoveResult,
   ProviderType,
+  ListVersionsResponse,
+  RestoreVersionResult,
+  ObjectTag,
+  ObjectTagsResponse,
 } from "./types";
 
 // Credentials commands
@@ -262,6 +266,58 @@ export const objects = {
       contentDisposition: params.contentDisposition,
       contentEncoding: params.contentEncoding,
       customMetadata: params.customMetadata,
+    }),
+
+  listVersions: (params: {
+    accountId: string;
+    bucket: string;
+    key: string;
+    keyMarker?: string;
+    versionIdMarker?: string;
+    maxKeys?: number;
+  }) =>
+    invoke<ListVersionsResponse>("list_object_versions", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+      key: params.key,
+      keyMarker: params.keyMarker,
+      versionIdMarker: params.versionIdMarker,
+      maxKeys: params.maxKeys,
+    }),
+
+  restoreVersion: (params: {
+    accountId: string;
+    bucket: string;
+    key: string;
+    versionId: string;
+  }) =>
+    invoke<RestoreVersionResult>("restore_object_version", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+      key: params.key,
+      versionId: params.versionId,
+    }),
+
+  getTags: (params: { accountId: string; bucket: string; key: string }) =>
+    invoke<ObjectTagsResponse>("get_object_tagging", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+      key: params.key,
+    }),
+
+  setTags: (params: { accountId: string; bucket: string; key: string; tags: ObjectTag[] }) =>
+    invoke<ObjectTagsResponse>("put_object_tagging", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+      key: params.key,
+      tags: params.tags,
+    }),
+
+  deleteTags: (params: { accountId: string; bucket: string; key: string }) =>
+    invoke<void>("delete_object_tagging", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+      key: params.key,
     }),
 };
 

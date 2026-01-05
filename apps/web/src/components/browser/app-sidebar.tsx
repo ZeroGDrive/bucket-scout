@@ -45,7 +45,13 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useBrowserStore } from "@/lib/store";
-import { useAccounts, useBuckets, useRemoveAccount, useTestConnection, useDeleteBucket } from "@/lib/queries";
+import {
+  useAccounts,
+  useBuckets,
+  useRemoveAccount,
+  useTestConnection,
+  useDeleteBucket,
+} from "@/lib/queries";
 import { AddAccountDialog } from "@/components/accounts/add-account-dialog";
 import { CreateBucketDialog } from "@/components/browser/create-bucket-dialog";
 import { toast } from "sonner";
@@ -54,7 +60,10 @@ import { parseS3Error } from "@/lib/utils";
 export function AppSidebar() {
   const [addAccountOpen, setAddAccountOpen] = useState(false);
   const [createBucketOpen, setCreateBucketOpen] = useState(false);
-  const [deleteBucketDialog, setDeleteBucketDialog] = useState<{ open: boolean; bucketName: string }>({
+  const [deleteBucketDialog, setDeleteBucketDialog] = useState<{
+    open: boolean;
+    bucketName: string;
+  }>({
     open: false,
     bucketName: "",
   });
@@ -280,7 +289,9 @@ export function AppSidebar() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" side="right">
                               <DropdownMenuItem
-                                onClick={() => setDeleteBucketDialog({ open: true, bucketName: bucket.name })}
+                                onClick={() =>
+                                  setDeleteBucketDialog({ open: true, bucketName: bucket.name })
+                                }
                                 className="text-destructive focus:text-destructive"
                               >
                                 <Trash2 className="h-4 w-4 mr-2" />
@@ -340,8 +351,8 @@ export function AppSidebar() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Bucket</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete the bucket "{deleteBucketDialog.bucketName}"?
-              This action cannot be undone.
+              Are you sure you want to delete the bucket "{deleteBucketDialog.bucketName}"? This
+              action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="flex items-center space-x-2 py-4">

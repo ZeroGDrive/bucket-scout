@@ -8,6 +8,7 @@ import {
   FileCode,
   ChevronRight,
   FolderOpen,
+  FolderPlus,
   ArrowUp,
   ArrowDown,
 } from "lucide-react";
@@ -15,7 +16,7 @@ import { Image } from "@unpic/react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { useBrowserStore, useCurrentPrefix, useClipboard, type SortBy } from "@/lib/store";
+import { useBrowserStore, useCurrentPrefix, useClipboard } from "@/lib/store";
 import {
   useObjects,
   useThumbnail,
@@ -165,11 +166,17 @@ export function FileExplorer() {
   const viewMode = useBrowserStore((s) => s.viewMode);
   const searchQuery = useBrowserStore((s) => s.searchQuery);
   const searchRecursive = useBrowserStore((s) => s.searchRecursive);
+  const filterMinSize = useBrowserStore((s) => s.filterMinSize);
+  const filterMaxSize = useBrowserStore((s) => s.filterMaxSize);
+  const filterDateFrom = useBrowserStore((s) => s.filterDateFrom);
+  const filterDateTo = useBrowserStore((s) => s.filterDateTo);
   const sortBy = useBrowserStore((s) => s.sortBy);
   const sortDirection = useBrowserStore((s) => s.sortDirection);
   const toggleSort = useBrowserStore((s) => s.toggleSort);
 
   const navigateTo = useBrowserStore((s) => s.navigateTo);
+  const navigateUp = useBrowserStore((s) => s.navigateUp);
+  const currentPath = useBrowserStore((s) => s.currentPath);
   const selectFile = useBrowserStore((s) => s.selectFile);
   const toggleFileSelection = useBrowserStore((s) => s.toggleFileSelection);
   const selectRange = useBrowserStore((s) => s.selectRange);
@@ -281,10 +288,7 @@ export function FileExplorer() {
     };
 
     // Folders always stay at top, sorted by name only, then files sorted by selected column
-    return [
-      ...allFolders.sort((a, b) => a.name.localeCompare(b.name)),
-      ...sortItems(allFiles),
-    ];
+    return [...allFolders.sort((a, b) => a.name.localeCompare(b.name)), ...sortItems(allFiles)];
   }, [data?.pages, prefix, sortBy, sortDirection]);
 
   // Transform search results to FileItems (for recursive search)
@@ -300,22 +304,54 @@ export function FileExplorer() {
     }));
   }, [searchResults]);
 
+  // Apply size and date filters to items
+  const applyFilters = useCallback(
+    (itemsToFilter: FileItem[]): FileItem[] => {
+      return itemsToFilter.filter((item) => {
+        // Folders pass through filters (we filter files only)
+        if (item.isFolder) return true;
+
+        // Size filter
+        if (filterMinSize !== null && item.size < filterMinSize) return false;
+        if (filterMaxSize !== null && item.size > filterMaxSize) return false;
+
+        // Date filter
+        if (filterDateFrom !== null && item.lastModified) {
+          const itemDate = new Date(item.lastModified).getTime();
+          const fromDate = new Date(filterDateFrom).getTime();
+          if (itemDate < fromDate) return false;
+        }
+        if (filterDateTo !== null && item.lastModified) {
+          const itemDate = new Date(item.lastModified).getTime();
+          const toDate = new Date(filterDateTo).getTime();
+          if (itemDate > toDate) return false;
+        }
+
+        return true;
+      });
+    },
+    [filterMinSize, filterMaxSize, filterDateFrom, filterDateTo],
+  );
+
   // Final items: either search results or filtered local items
   const items: FileItem[] = useMemo(() => {
+    let result: FileItem[];
+
     // If recursive search is active and we have a query, use search results
     if (searchRecursive && searchQuery.length >= 2) {
-      return searchItems;
-    }
-
-    // If local search (non-recursive), filter the raw items
-    if (searchQuery.trim()) {
+      result = searchItems;
+    } else if (searchQuery.trim()) {
+      // If local search (non-recursive), filter the raw items
       const queryLower = searchQuery.toLowerCase();
-      return rawItems.filter((item) => item.name.toLowerCase().includes(queryLower));
+      result = rawItems.filter((item) => item.name.toLowerCase().includes(queryLower));
+    } else {
+      // No search, return all items
+      result = rawItems;
     }
 
-    // No search, return all items
-    return rawItems;
-  }, [rawItems, searchItems, searchQuery, searchRecursive]);
+    // Apply size/date filters
+    return applyFilters(result);
+  }, [rawItems, searchItems, searchQuery, searchRecursive, applyFilters]);
 
   // Get all item keys for range selection
   const allKeys = useMemo(() => items.map((item) => item.key), [items]);
@@ -545,9 +581,7 @@ export function FileExplorer() {
     const itemCount = clipboard.keys.length;
 
     // Show loading toast
-    const toastId = toast.loading(
-      `${action} ${itemCount} item${itemCount > 1 ? "s" : ""}...`,
-    );
+    const toastId = toast.loading(`${action} ${itemCount} item${itemCount > 1 ? "s" : ""}...`);
 
     if (isSameBucket) {
       // Same bucket: use existing copy_objects command
@@ -651,42 +685,203 @@ export function FileExplorer() {
     }
   }, [selectedItems, queueDownloads, queueFolderDownload]);
 
+  // Get the currently focused item for keyboard navigation
+  const getFocusedItem = useCallback(() => {
+    if (selectedFileKeys.length === 0) return null;
+    // Use the last selected key as the "anchor" for navigation
+    const lastKey = selectedFileKeys[selectedFileKeys.length - 1];
+    return items.find((item) => item.key === lastKey) ?? null;
+  }, [selectedFileKeys, items]);
+
+  // Handle command palette actions
+  useEffect(() => {
+    const handleCommandAction = (e: Event) => {
+      const action = (e as CustomEvent).detail;
+      switch (action) {
+        case 'new-folder':
+          setCreateFolderDialogOpen(true);
+          break;
+        case 'delete':
+          if (selectedFileKeys.length > 0) {
+            setDeleteDialogOpen(true);
+          }
+          break;
+        case 'download':
+          handleDownload();
+          break;
+        case 'paste':
+          handlePaste();
+          break;
+        case 'upload':
+          // Trigger the upload button click
+          const uploadButton = document.querySelector<HTMLButtonElement>('[data-upload-trigger]');
+          uploadButton?.click();
+          break;
+      }
+    };
+
+    window.addEventListener('command-palette-action', handleCommandAction);
+    return () => window.removeEventListener('command-palette-action', handleCommandAction);
+  }, [selectedFileKeys.length, handleDownload, handlePaste]);
+
   // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't handle shortcuts if user is typing in an input
+      const target = e.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) {
+        return;
+      }
+
+      // Don't handle shortcuts if command palette is open
+      if (document.querySelector('[cmdk-root]')) {
+        return;
+      }
+
       // Cmd/Ctrl+A: Select all
       if ((e.metaKey || e.ctrlKey) && e.key === "a") {
         e.preventDefault();
         selectAll(allKeys);
+        return;
       }
+
+      // Cmd/Ctrl+Shift+N: New folder
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "N") {
+        e.preventDefault();
+        setCreateFolderDialogOpen(true);
+        return;
+      }
+
       // Cmd/Ctrl+C: Copy
       if ((e.metaKey || e.ctrlKey) && e.key === "c" && selectedFileKeys.length > 0) {
         e.preventDefault();
         handleCopy();
+        return;
       }
+
       // Cmd/Ctrl+X: Cut
       if ((e.metaKey || e.ctrlKey) && e.key === "x" && selectedFileKeys.length > 0) {
         e.preventDefault();
         handleCut();
+        return;
       }
+
       // Cmd/Ctrl+V: Paste
       if ((e.metaKey || e.ctrlKey) && e.key === "v" && clipboard) {
         e.preventDefault();
         handlePaste();
+        return;
       }
-      // Delete/Backspace: Delete
-      if ((e.key === "Delete" || e.key === "Backspace") && selectedFileKeys.length > 0) {
+
+      // Delete: Delete selected items
+      if (e.key === "Delete" && selectedFileKeys.length > 0) {
         e.preventDefault();
         setDeleteDialogOpen(true);
+        return;
+      }
+
+      // Backspace: Delete if items selected, otherwise navigate up
+      if (e.key === "Backspace") {
+        e.preventDefault();
+        if (selectedFileKeys.length > 0) {
+          setDeleteDialogOpen(true);
+        } else if (currentPath.length > 0) {
+          navigateUp();
+        }
+        return;
+      }
+
+      // Escape: Clear selection
+      if (e.key === "Escape") {
+        e.preventDefault();
+        clearSelection();
+        return;
+      }
+
+      // Enter: Open folder or preview file
+      if (e.key === "Enter" && selectedFileKeys.length === 1) {
+        e.preventDefault();
+        const item = getFocusedItem();
+        if (item) {
+          if (item.isFolder) {
+            navigateTo(item.key);
+          } else {
+            setPreviewPanelOpen(true);
+          }
+        }
+        return;
+      }
+
+      // Arrow Up: Select previous item
+      if (e.key === "ArrowUp" && items.length > 0) {
+        e.preventDefault();
+        const currentIndex =
+          selectedFileKeys.length > 0
+            ? allKeys.indexOf(selectedFileKeys[selectedFileKeys.length - 1])
+            : 0;
+        const newIndex = currentIndex > 0 ? currentIndex - 1 : 0;
+        if (e.shiftKey) {
+          // Extend selection
+          selectRange(allKeys[newIndex], allKeys);
+        } else {
+          // Move selection
+          selectFile(allKeys[newIndex]);
+        }
+        return;
+      }
+
+      // Arrow Down: Select next item
+      if (e.key === "ArrowDown" && items.length > 0) {
+        e.preventDefault();
+        const currentIndex =
+          selectedFileKeys.length > 0
+            ? allKeys.indexOf(selectedFileKeys[selectedFileKeys.length - 1])
+            : -1;
+        const newIndex = currentIndex < allKeys.length - 1 ? currentIndex + 1 : allKeys.length - 1;
+        if (e.shiftKey) {
+          // Extend selection
+          selectRange(allKeys[newIndex], allKeys);
+        } else {
+          // Move selection
+          selectFile(allKeys[newIndex]);
+        }
+        return;
       }
     };
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [allKeys, selectAll, selectedFileKeys.length, clipboard, handleCopy, handleCut, handlePaste]);
+  }, [
+    allKeys,
+    items,
+    selectAll,
+    selectFile,
+    selectRange,
+    selectedFileKeys,
+    clipboard,
+    currentPath,
+    handleCopy,
+    handleCut,
+    handlePaste,
+    clearSelection,
+    getFocusedItem,
+    navigateTo,
+    navigateUp,
+    setPreviewPanelOpen,
+  ]);
 
   // Empty state component
-  const EmptyState = ({ icon: Icon, message }: { icon: typeof Folder; message: string }) => (
+  const EmptyState = ({
+    icon: Icon,
+    message,
+    description,
+    showActions = false,
+  }: {
+    icon: typeof Folder;
+    message: string;
+    description?: string;
+    showActions?: boolean;
+  }) => (
     <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-8">
       <div className="relative mb-6">
         <div className="absolute inset-0 bg-primary/5 rounded-full blur-xl scale-150" />
@@ -695,6 +890,20 @@ export function FileExplorer() {
         </div>
       </div>
       <p className="text-sm font-medium">{message}</p>
+      {description && <p className="text-xs text-muted-foreground/70 mt-1">{description}</p>}
+      {showActions && (
+        <div className="flex gap-2 mt-4">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCreateFolderDialogOpen(true)}
+            className="gap-1.5"
+          >
+            <FolderPlus className="h-3.5 w-3.5" />
+            New Folder
+          </Button>
+        </div>
+      )}
     </div>
   );
 
@@ -736,8 +945,31 @@ export function FileExplorer() {
     return <EmptyState icon={SearchX} message={`No results for "${searchQuery}"`} />;
   }
 
+  // Check if filters are active
+  const hasActiveFilters =
+    filterMinSize !== null ||
+    filterMaxSize !== null ||
+    filterDateFrom !== null ||
+    filterDateTo !== null;
+
   if (items.length === 0) {
-    return <EmptyState icon={FolderOpen} message="This folder is empty" />;
+    if (hasActiveFilters) {
+      return (
+        <EmptyState
+          icon={SearchX}
+          message="No files match your filters"
+          description="Try adjusting your size or date filters"
+        />
+      );
+    }
+    return (
+      <EmptyState
+        icon={FolderOpen}
+        message="This folder is empty"
+        description="Drag files here or use the upload button"
+        showActions
+      />
+    );
   }
 
   if (viewMode === "grid") {
@@ -892,13 +1124,12 @@ export function FileExplorer() {
                   className="flex items-center gap-1 hover:text-foreground transition-colors"
                 >
                   Name
-                  {sortBy === "name" && (
-                    sortDirection === "asc" ? (
+                  {sortBy === "name" &&
+                    (sortDirection === "asc" ? (
                       <ArrowUp className="h-3 w-3" />
                     ) : (
                       <ArrowDown className="h-3 w-3" />
-                    )
-                  )}
+                    ))}
                 </button>
               </th>
               <th className="px-4 py-2.5 font-medium text-xs uppercase tracking-wider text-muted-foreground w-24 text-right">
@@ -908,13 +1139,12 @@ export function FileExplorer() {
                   className="flex items-center gap-1 ml-auto hover:text-foreground transition-colors"
                 >
                   Size
-                  {sortBy === "size" && (
-                    sortDirection === "asc" ? (
+                  {sortBy === "size" &&
+                    (sortDirection === "asc" ? (
                       <ArrowUp className="h-3 w-3" />
                     ) : (
                       <ArrowDown className="h-3 w-3" />
-                    )
-                  )}
+                    ))}
                 </button>
               </th>
               <th className="px-4 py-2.5 font-medium text-xs uppercase tracking-wider text-muted-foreground w-44 text-right whitespace-nowrap">
@@ -924,13 +1154,12 @@ export function FileExplorer() {
                   className="flex items-center gap-1 ml-auto hover:text-foreground transition-colors"
                 >
                   Modified
-                  {sortBy === "modified" && (
-                    sortDirection === "asc" ? (
+                  {sortBy === "modified" &&
+                    (sortDirection === "asc" ? (
                       <ArrowUp className="h-3 w-3" />
                     ) : (
                       <ArrowDown className="h-3 w-3" />
-                    )
-                  )}
+                    ))}
                 </button>
               </th>
             </tr>

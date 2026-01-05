@@ -96,6 +96,43 @@ export interface ObjectMetadata {
   metadata?: Record<string, string>;
 }
 
+// Object versioning types
+export interface ObjectVersionInfo {
+  versionId: string;
+  isLatest: boolean;
+  isDeleteMarker: boolean;
+  lastModified?: string;
+  size?: number;
+  etag?: string;
+  storageClass?: string;
+}
+
+export interface ListVersionsResponse {
+  key: string;
+  versions: ObjectVersionInfo[];
+  keyMarker?: string;
+  versionIdMarker?: string;
+  isTruncated: boolean;
+  versioningEnabled: boolean;
+}
+
+export interface RestoreVersionResult {
+  key: string;
+  restoredVersionId: string;
+  newVersionId?: string;
+}
+
+// Object tagging types
+export interface ObjectTag {
+  key: string;
+  value: string;
+}
+
+export interface ObjectTagsResponse {
+  objectKey: string;
+  tags: ObjectTag[];
+}
+
 export type PreviewContent =
   | { type: "Text"; content: string; truncated: boolean }
   | { type: "Image"; base64: string; mimeType: string }

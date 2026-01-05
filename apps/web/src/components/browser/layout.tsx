@@ -7,6 +7,7 @@ import { Toolbar } from "./toolbar";
 import { DropZone } from "./drop-zone";
 import { UploadToast } from "./upload-toast";
 import { DownloadToast } from "./download-toast";
+import { CommandPalette } from "./command-palette";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 
 export function BrowserLayout() {
@@ -46,6 +47,7 @@ export function BrowserLayout() {
 
       <UploadToast />
       <DownloadToast />
+      <CommandPalette />
     </SidebarProvider>
   );
 }

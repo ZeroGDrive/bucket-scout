@@ -16,6 +16,10 @@ export const queryKeys = {
     ["thumbnail", accountId, bucket, key] as const,
   metadata: (accountId: string, bucket: string, key: string) =>
     ["metadata", accountId, bucket, key] as const,
+  versions: (accountId: string, bucket: string, key: string) =>
+    ["versions", accountId, bucket, key] as const,
+  tags: (accountId: string, bucket: string, key: string) =>
+    ["tags", accountId, bucket, key] as const,
 };
 
 // Account queries
@@ -335,6 +339,116 @@ export function useUpdateObjectMetadata() {
       // Also invalidate preview in case content-type changed
       queryClient.invalidateQueries({
         queryKey: queryKeys.preview(variables.accountId, variables.bucket, variables.key),
+      });
+    },
+  });
+}
+
+// Object versions query with pagination
+export function useObjectVersions(
+  accountId: string | null,
+  bucket: string | null,
+  key: string | null,
+) {
+  return useInfiniteQuery({
+    queryKey: queryKeys.versions(accountId || "", bucket || "", key || ""),
+    queryFn: ({ pageParam }) =>
+      objects.listVersions({
+        accountId: accountId!,
+        bucket: bucket!,
+        key: key!,
+        keyMarker: pageParam?.keyMarker,
+        versionIdMarker: pageParam?.versionIdMarker,
+        maxKeys: 50,
+      }),
+    getNextPageParam: (lastPage) =>
+      lastPage.isTruncated
+        ? { keyMarker: lastPage.keyMarker, versionIdMarker: lastPage.versionIdMarker }
+        : undefined,
+    initialPageParam: undefined as { keyMarker?: string; versionIdMarker?: string } | undefined,
+    enabled: !!accountId && !!bucket && !!key,
+    staleTime: 30_000, // 30 seconds
+  });
+}
+
+// Restore version mutation
+export function useRestoreVersion() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (params: {
+      accountId: string;
+      bucket: string;
+      key: string;
+      versionId: string;
+    }) => objects.restoreVersion(params),
+    onSuccess: (_, variables) => {
+      // Invalidate versions list to show the new restored version
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.versions(variables.accountId, variables.bucket, variables.key),
+      });
+      // Also invalidate objects list as the current version changed
+      queryClient.invalidateQueries({
+        queryKey: ["objects", variables.accountId, variables.bucket],
+      });
+      // Invalidate metadata
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.metadata(variables.accountId, variables.bucket, variables.key),
+      });
+    },
+  });
+}
+
+// Object tags query
+export function useObjectTags(
+  accountId: string | null,
+  bucket: string | null,
+  key: string | null,
+) {
+  return useQuery({
+    queryKey: queryKeys.tags(accountId || "", bucket || "", key || ""),
+    queryFn: () =>
+      objects.getTags({
+        accountId: accountId!,
+        bucket: bucket!,
+        key: key!,
+      }),
+    enabled: !!accountId && !!bucket && !!key,
+    staleTime: 30_000, // 30 seconds
+  });
+}
+
+// Set tags mutation
+export function useSetObjectTags() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (params: {
+      accountId: string;
+      bucket: string;
+      key: string;
+      tags: import("./types").ObjectTag[];
+    }) => objects.setTags(params),
+    onSuccess: (_, variables) => {
+      // Invalidate tags for this specific object
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.tags(variables.accountId, variables.bucket, variables.key),
+      });
+    },
+  });
+}
+
+// Delete tags mutation
+export function useDeleteObjectTags() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (params: { accountId: string; bucket: string; key: string }) =>
+      objects.deleteTags(params),
+    onSuccess: (_, variables) => {
+      // Invalidate tags for this specific object
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.tags(variables.accountId, variables.bucket, variables.key),
       });
     },
   });

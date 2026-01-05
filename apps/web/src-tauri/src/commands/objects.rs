@@ -3,7 +3,7 @@ use crate::error::AppError;
 use crate::s3::client::S3ClientManager;
 use aws_sdk_s3::presigning::PresigningConfig;
 use aws_sdk_s3::types::ObjectIdentifier;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -168,6 +168,38 @@ pub struct ObjectMetadata {
     pub cache_control: Option<String>,
     pub version_id: Option<String>,
     pub metadata: Option<std::collections::HashMap<String, String>>,
+}
+
+// Object versioning types
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ObjectVersionInfo {
+    pub version_id: String,
+    pub is_latest: bool,
+    pub is_delete_marker: bool,
+    pub last_modified: Option<String>,
+    pub size: Option<i64>,
+    pub etag: Option<String>,
+    pub storage_class: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ListVersionsResponse {
+    pub key: String,
+    pub versions: Vec<ObjectVersionInfo>,
+    pub key_marker: Option<String>,
+    pub version_id_marker: Option<String>,
+    pub is_truncated: bool,
+    pub versioning_enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestoreVersionResult {
+    pub key: String,
+    pub restored_version_id: String,
+    pub new_version_id: Option<String>,
 }
 
 // Upload event types for progress tracking (using global events)
@@ -1840,4 +1872,330 @@ pub async fn download_folder(
     );
 
     Ok(final_path)
+}
+
+/// List all versions of a specific object
+#[tauri::command(rename_all = "camelCase")]
+pub async fn list_object_versions(
+    credentials: State<'_, CredentialsManager>,
+    s3_clients: State<'_, S3ClientManager>,
+    account_id: String,
+    bucket: String,
+    key: String,
+    key_marker: Option<String>,
+    version_id_marker: Option<String>,
+    max_keys: Option<i32>,
+) -> Result<ListVersionsResponse, AppError> {
+    let account = credentials.get_account(&account_id)?;
+    let secret = credentials.get_secret_key(&account_id)?;
+
+    let client = s3_clients
+        .get_or_create_client(
+            &account_id,
+            &account.endpoint,
+            &account.access_key_id,
+            &secret,
+            account.provider_type,
+            account.region.as_deref(),
+        )
+        .await?;
+
+    // Check if versioning is enabled
+    let versioning_enabled = match client.get_bucket_versioning().bucket(&bucket).send().await {
+        Ok(resp) => matches!(
+            resp.status(),
+            Some(aws_sdk_s3::types::BucketVersioningStatus::Enabled)
+        ),
+        Err(_) => false, // R2 may not support this, treat as no versioning
+    };
+
+    // Build the list_object_versions request
+    let mut request = client
+        .list_object_versions()
+        .bucket(&bucket)
+        .prefix(&key)
+        .max_keys(max_keys.unwrap_or(100));
+
+    if let Some(km) = key_marker {
+        request = request.key_marker(km);
+    }
+
+    if let Some(vim) = version_id_marker {
+        request = request.version_id_marker(vim);
+    }
+
+    let response = match request.send().await {
+        Ok(r) => r,
+        Err(e) => {
+            // Check if it's an unsupported operation (e.g., R2)
+            let err_str = format!("{:?}", e);
+            if err_str.contains("NotImplemented") || err_str.contains("not supported") {
+                return Ok(ListVersionsResponse {
+                    key,
+                    versions: vec![],
+                    key_marker: None,
+                    version_id_marker: None,
+                    is_truncated: false,
+                    versioning_enabled: false,
+                });
+            }
+            return Err(AppError::S3(err_str));
+        }
+    };
+
+    let mut versions: Vec<ObjectVersionInfo> = Vec::new();
+
+    // Process actual versions (filter by exact key match)
+    for version in response.versions() {
+        if version.key().map_or(false, |k| k == key) {
+            versions.push(ObjectVersionInfo {
+                version_id: version.version_id().unwrap_or("null").to_string(),
+                is_latest: version.is_latest().unwrap_or(false),
+                is_delete_marker: false,
+                last_modified: version.last_modified().map(|d| d.to_string()),
+                size: version.size(),
+                etag: version.e_tag().map(|e| e.trim_matches('"').to_string()),
+                storage_class: version.storage_class().map(|s| s.as_str().to_string()),
+            });
+        }
+    }
+
+    // Process delete markers (filter by exact key match)
+    for marker in response.delete_markers() {
+        if marker.key().map_or(false, |k| k == key) {
+            versions.push(ObjectVersionInfo {
+                version_id: marker.version_id().unwrap_or("null").to_string(),
+                is_latest: marker.is_latest().unwrap_or(false),
+                is_delete_marker: true,
+                last_modified: marker.last_modified().map(|d| d.to_string()),
+                size: None,
+                etag: None,
+                storage_class: None,
+            });
+        }
+    }
+
+    // Sort by last_modified descending (newest first)
+    versions.sort_by(|a, b| b.last_modified.as_ref().cmp(&a.last_modified.as_ref()));
+
+    Ok(ListVersionsResponse {
+        key,
+        versions,
+        key_marker: response.next_key_marker().map(|s| s.to_string()),
+        version_id_marker: response.next_version_id_marker().map(|s| s.to_string()),
+        is_truncated: response.is_truncated().unwrap_or(false),
+        versioning_enabled,
+    })
+}
+
+/// Restore a previous version by copying it to become the new current version
+#[tauri::command(rename_all = "camelCase")]
+pub async fn restore_object_version(
+    credentials: State<'_, CredentialsManager>,
+    s3_clients: State<'_, S3ClientManager>,
+    account_id: String,
+    bucket: String,
+    key: String,
+    version_id: String,
+) -> Result<RestoreVersionResult, AppError> {
+    let account = credentials.get_account(&account_id)?;
+    let secret = credentials.get_secret_key(&account_id)?;
+
+    let client = s3_clients
+        .get_or_create_client(
+            &account_id,
+            &account.endpoint,
+            &account.access_key_id,
+            &secret,
+            account.provider_type,
+            account.region.as_deref(),
+        )
+        .await?;
+
+    // Copy the specified version to the same key (creates a new current version)
+    let copy_source = format!(
+        "{}/{}?versionId={}",
+        bucket,
+        urlencoding::encode(&key),
+        urlencoding::encode(&version_id)
+    );
+
+    let response = client
+        .copy_object()
+        .bucket(&bucket)
+        .key(&key)
+        .copy_source(&copy_source)
+        .send()
+        .await
+        .map_err(|e| AppError::S3(format!("Failed to restore version: {:?}", e)))?;
+
+    Ok(RestoreVersionResult {
+        key,
+        restored_version_id: version_id,
+        new_version_id: response.version_id().map(|s| s.to_string()),
+    })
+}
+
+// Object tagging types
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ObjectTag {
+    pub key: String,
+    pub value: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ObjectTagsResponse {
+    pub object_key: String,
+    pub tags: Vec<ObjectTag>,
+}
+
+/// Get tags for an object
+#[tauri::command(rename_all = "camelCase")]
+pub async fn get_object_tagging(
+    credentials: State<'_, CredentialsManager>,
+    s3_clients: State<'_, S3ClientManager>,
+    account_id: String,
+    bucket: String,
+    key: String,
+) -> Result<ObjectTagsResponse, AppError> {
+    let account = credentials.get_account(&account_id)?;
+    let secret = credentials.get_secret_key(&account_id)?;
+
+    let client = s3_clients
+        .get_or_create_client(
+            &account_id,
+            &account.endpoint,
+            &account.access_key_id,
+            &secret,
+            account.provider_type,
+            account.region.as_deref(),
+        )
+        .await?;
+
+    let response = match client
+        .get_object_tagging()
+        .bucket(&bucket)
+        .key(&key)
+        .send()
+        .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            // Check if it's an unsupported operation (e.g., some providers)
+            let err_str = format!("{:?}", e);
+            if err_str.contains("NotImplemented") || err_str.contains("not supported") {
+                return Ok(ObjectTagsResponse {
+                    object_key: key,
+                    tags: vec![],
+                });
+            }
+            return Err(AppError::S3(err_str));
+        }
+    };
+
+    let tags: Vec<ObjectTag> = response
+        .tag_set()
+        .iter()
+        .map(|tag| ObjectTag {
+            key: tag.key().to_string(),
+            value: tag.value().to_string(),
+        })
+        .collect();
+
+    Ok(ObjectTagsResponse {
+        object_key: key,
+        tags,
+    })
+}
+
+/// Set tags for an object (replaces all existing tags)
+#[tauri::command(rename_all = "camelCase")]
+pub async fn put_object_tagging(
+    credentials: State<'_, CredentialsManager>,
+    s3_clients: State<'_, S3ClientManager>,
+    account_id: String,
+    bucket: String,
+    key: String,
+    tags: Vec<ObjectTag>,
+) -> Result<ObjectTagsResponse, AppError> {
+    let account = credentials.get_account(&account_id)?;
+    let secret = credentials.get_secret_key(&account_id)?;
+
+    let client = s3_clients
+        .get_or_create_client(
+            &account_id,
+            &account.endpoint,
+            &account.access_key_id,
+            &secret,
+            account.provider_type,
+            account.region.as_deref(),
+        )
+        .await?;
+
+    // Build the tag set
+    let s3_tags: Vec<aws_sdk_s3::types::Tag> = tags
+        .iter()
+        .filter_map(|tag| {
+            aws_sdk_s3::types::Tag::builder()
+                .key(&tag.key)
+                .value(&tag.value)
+                .build()
+                .ok()
+        })
+        .collect();
+
+    let tagging = aws_sdk_s3::types::Tagging::builder()
+        .set_tag_set(Some(s3_tags))
+        .build()
+        .map_err(|e| AppError::InvalidInput(format!("Failed to build tagging: {:?}", e)))?;
+
+    client
+        .put_object_tagging()
+        .bucket(&bucket)
+        .key(&key)
+        .tagging(tagging)
+        .send()
+        .await
+        .map_err(|e| AppError::S3(format!("Failed to set tags: {:?}", e)))?;
+
+    Ok(ObjectTagsResponse {
+        object_key: key,
+        tags,
+    })
+}
+
+/// Delete all tags from an object
+#[tauri::command(rename_all = "camelCase")]
+pub async fn delete_object_tagging(
+    credentials: State<'_, CredentialsManager>,
+    s3_clients: State<'_, S3ClientManager>,
+    account_id: String,
+    bucket: String,
+    key: String,
+) -> Result<(), AppError> {
+    let account = credentials.get_account(&account_id)?;
+    let secret = credentials.get_secret_key(&account_id)?;
+
+    let client = s3_clients
+        .get_or_create_client(
+            &account_id,
+            &account.endpoint,
+            &account.access_key_id,
+            &secret,
+            account.provider_type,
+            account.region.as_deref(),
+        )
+        .await?;
+
+    client
+        .delete_object_tagging()
+        .bucket(&bucket)
+        .key(&key)
+        .send()
+        .await
+        .map_err(|e| AppError::S3(format!("Failed to delete tags: {:?}", e)))?;
+
+    Ok(())
 }

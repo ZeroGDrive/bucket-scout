@@ -42,6 +42,11 @@ pub fn run() {
             commands::objects::copy_objects_across_buckets,
             commands::objects::download_folder,
             commands::objects::update_object_metadata,
+            commands::objects::list_object_versions,
+            commands::objects::restore_object_version,
+            commands::objects::get_object_tagging,
+            commands::objects::put_object_tagging,
+            commands::objects::delete_object_tagging,
             // Preview commands
             commands::preview::get_preview,
             commands::preview::get_thumbnail,
