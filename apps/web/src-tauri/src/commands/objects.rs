@@ -45,7 +45,14 @@ pub async fn list_objects(
     let secret = credentials.get_secret_key(&account_id)?;
 
     let client = s3_clients
-        .get_or_create_client(&account_id, &account.endpoint, &account.access_key_id, &secret)
+        .get_or_create_client(
+            &account_id,
+            &account.endpoint,
+            &account.access_key_id,
+            &secret,
+            account.provider_type,
+            account.region.as_deref(),
+        )
         .await?;
 
     let mut request = client
@@ -115,7 +122,14 @@ pub async fn get_object_metadata(
     let secret = credentials.get_secret_key(&account_id)?;
 
     let client = s3_clients
-        .get_or_create_client(&account_id, &account.endpoint, &account.access_key_id, &secret)
+        .get_or_create_client(
+            &account_id,
+            &account.endpoint,
+            &account.access_key_id,
+            &secret,
+            account.provider_type,
+            account.region.as_deref(),
+        )
         .await?;
 
     let response = client.head_object().bucket(&bucket).key(&key).send().await?;
@@ -227,7 +241,14 @@ pub async fn upload_object(
     let account = credentials.get_account(&account_id)?;
     let secret = credentials.get_secret_key(&account_id)?;
     let client = s3_clients
-        .get_or_create_client(&account_id, &account.endpoint, &account.access_key_id, &secret)
+        .get_or_create_client(
+            &account_id,
+            &account.endpoint,
+            &account.access_key_id,
+            &secret,
+            account.provider_type,
+            account.region.as_deref(),
+        )
         .await?;
 
     // Determine content type
@@ -332,7 +353,14 @@ pub async fn delete_objects(
     let secret = credentials.get_secret_key(&account_id)?;
 
     let client = s3_clients
-        .get_or_create_client(&account_id, &account.endpoint, &account.access_key_id, &secret)
+        .get_or_create_client(
+            &account_id,
+            &account.endpoint,
+            &account.access_key_id,
+            &secret,
+            account.provider_type,
+            account.region.as_deref(),
+        )
         .await?;
 
     let mut all_keys_to_delete: Vec<String> = Vec::new();
@@ -563,7 +591,14 @@ pub async fn create_folder(
     let secret = credentials.get_secret_key(&account_id)?;
 
     let client = s3_clients
-        .get_or_create_client(&account_id, &account.endpoint, &account.access_key_id, &secret)
+        .get_or_create_client(
+            &account_id,
+            &account.endpoint,
+            &account.access_key_id,
+            &secret,
+            account.provider_type,
+            account.region.as_deref(),
+        )
         .await?;
 
     // Construct the full key with trailing slash
@@ -633,7 +668,14 @@ pub async fn download_object(
     let secret = credentials.get_secret_key(&account_id)?;
 
     let client = s3_clients
-        .get_or_create_client(&account_id, &account.endpoint, &account.access_key_id, &secret)
+        .get_or_create_client(
+            &account_id,
+            &account.endpoint,
+            &account.access_key_id,
+            &secret,
+            account.provider_type,
+            account.region.as_deref(),
+        )
         .await?;
 
     // Get the object
@@ -794,7 +836,14 @@ pub async fn search_objects(
     let secret = credentials.get_secret_key(&account_id)?;
 
     let client = s3_clients
-        .get_or_create_client(&account_id, &account.endpoint, &account.access_key_id, &secret)
+        .get_or_create_client(
+            &account_id,
+            &account.endpoint,
+            &account.access_key_id,
+            &secret,
+            account.provider_type,
+            account.region.as_deref(),
+        )
         .await?;
 
     let max = max_results.unwrap_or(100) as usize;
@@ -870,7 +919,14 @@ pub async fn generate_presigned_url(
     let secret = credentials.get_secret_key(&account_id)?;
 
     let client = s3_clients
-        .get_or_create_client(&account_id, &account.endpoint, &account.access_key_id, &secret)
+        .get_or_create_client(
+            &account_id,
+            &account.endpoint,
+            &account.access_key_id,
+            &secret,
+            account.provider_type,
+            account.region.as_deref(),
+        )
         .await?;
 
     let expires_in = Duration::from_secs(expires_in_seconds);
@@ -926,7 +982,14 @@ pub async fn rename_object(
     let secret = credentials.get_secret_key(&account_id)?;
 
     let client = s3_clients
-        .get_or_create_client(&account_id, &account.endpoint, &account.access_key_id, &secret)
+        .get_or_create_client(
+            &account_id,
+            &account.endpoint,
+            &account.access_key_id,
+            &secret,
+            account.provider_type,
+            account.region.as_deref(),
+        )
         .await?;
 
     let is_folder = old_key.ends_with('/');
@@ -1078,7 +1141,14 @@ pub async fn copy_objects(
     let secret = credentials.get_secret_key(&account_id)?;
 
     let client = s3_clients
-        .get_or_create_client(&account_id, &account.endpoint, &account.access_key_id, &secret)
+        .get_or_create_client(
+            &account_id,
+            &account.endpoint,
+            &account.access_key_id,
+            &secret,
+            account.provider_type,
+            account.region.as_deref(),
+        )
         .await?;
 
     let mut objects_copied = 0;
@@ -1250,6 +1320,8 @@ pub async fn copy_objects_across_buckets(
             &source_account.endpoint,
             &source_account.access_key_id,
             &source_secret,
+            source_account.provider_type,
+            source_account.region.as_deref(),
         )
         .await?;
 
@@ -1261,6 +1333,8 @@ pub async fn copy_objects_across_buckets(
             &dest_account.endpoint,
             &dest_account.access_key_id,
             &dest_secret,
+            dest_account.provider_type,
+            dest_account.region.as_deref(),
         )
         .await?;
 
@@ -1503,6 +1577,121 @@ pub struct FolderDownloadProgress {
     pub bytes_downloaded: u64,
 }
 
+/// Update object metadata using copy-in-place with REPLACE directive
+#[tauri::command(rename_all = "camelCase")]
+pub async fn update_object_metadata(
+    credentials: State<'_, CredentialsManager>,
+    s3_clients: State<'_, S3ClientManager>,
+    account_id: String,
+    bucket: String,
+    key: String,
+    content_type: Option<String>,
+    cache_control: Option<String>,
+    content_disposition: Option<String>,
+    content_encoding: Option<String>,
+    custom_metadata: Option<std::collections::HashMap<String, String>>,
+) -> Result<ObjectMetadata, AppError> {
+    let account = credentials.get_account(&account_id)?;
+    let secret = credentials.get_secret_key(&account_id)?;
+
+    let client = s3_clients
+        .get_or_create_client(
+            &account_id,
+            &account.endpoint,
+            &account.access_key_id,
+            &secret,
+            account.provider_type,
+            account.region.as_deref(),
+        )
+        .await?;
+
+    // First, get current metadata to preserve any fields not being updated
+    let current = client.head_object().bucket(&bucket).key(&key).send().await?;
+
+    // Use copy-in-place with REPLACE metadata directive
+    let copy_source = format!("{}/{}", bucket, urlencoding::encode(&key));
+
+    let mut copy_request = client
+        .copy_object()
+        .bucket(&bucket)
+        .key(&key)
+        .copy_source(&copy_source)
+        .metadata_directive(aws_sdk_s3::types::MetadataDirective::Replace);
+
+    // Set content type (use provided or keep existing)
+    if let Some(ct) = content_type {
+        copy_request = copy_request.content_type(ct);
+    } else if let Some(ct) = current.content_type() {
+        copy_request = copy_request.content_type(ct);
+    }
+
+    // Set cache control
+    if let Some(cc) = cache_control {
+        if !cc.is_empty() {
+            copy_request = copy_request.cache_control(cc);
+        }
+    } else if let Some(cc) = current.cache_control() {
+        copy_request = copy_request.cache_control(cc);
+    }
+
+    // Set content disposition
+    if let Some(cd) = content_disposition {
+        if !cd.is_empty() {
+            copy_request = copy_request.content_disposition(cd);
+        }
+    } else if let Some(cd) = current.content_disposition() {
+        copy_request = copy_request.content_disposition(cd);
+    }
+
+    // Set content encoding
+    if let Some(ce) = content_encoding {
+        if !ce.is_empty() {
+            copy_request = copy_request.content_encoding(ce);
+        }
+    } else if let Some(ce) = current.content_encoding() {
+        copy_request = copy_request.content_encoding(ce);
+    }
+
+    // Set custom metadata
+    if let Some(meta) = custom_metadata {
+        copy_request = copy_request.set_metadata(Some(meta));
+    } else if let Some(meta) = current.metadata() {
+        let meta_map: std::collections::HashMap<String, String> = meta
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+        copy_request = copy_request.set_metadata(Some(meta_map));
+    }
+
+    // Execute the copy
+    copy_request
+        .send()
+        .await
+        .map_err(|e| AppError::S3(format!("Failed to update metadata: {:?}", e)))?;
+
+    // Fetch and return the updated metadata
+    let updated = client.head_object().bucket(&bucket).key(&key).send().await?;
+
+    let metadata = updated.metadata().map(|m| {
+        m.iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect::<std::collections::HashMap<String, String>>()
+    });
+
+    Ok(ObjectMetadata {
+        key: key.clone(),
+        size: updated.content_length().unwrap_or(0),
+        content_type: updated.content_type().map(|s| s.to_string()),
+        last_modified: updated.last_modified().map(|d| d.to_string()),
+        etag: updated.e_tag().map(|e| e.trim_matches('"').to_string()),
+        storage_class: updated.storage_class().map(|s| s.as_str().to_string()),
+        content_encoding: updated.content_encoding().map(|s| s.to_string()),
+        cache_control: updated.cache_control().map(|s| s.to_string()),
+        version_id: updated.version_id().map(|s| s.to_string()),
+        metadata,
+    })
+}
+
 /// Download a folder as a ZIP file
 #[tauri::command(rename_all = "camelCase")]
 pub async fn download_folder(
@@ -1519,7 +1708,14 @@ pub async fn download_folder(
     let secret = credentials.get_secret_key(&account_id)?;
 
     let client = s3_clients
-        .get_or_create_client(&account_id, &account.endpoint, &account.access_key_id, &secret)
+        .get_or_create_client(
+            &account_id,
+            &account.endpoint,
+            &account.access_key_id,
+            &secret,
+            account.provider_type,
+            account.region.as_deref(),
+        )
         .await?;
 
     // List all objects with this prefix

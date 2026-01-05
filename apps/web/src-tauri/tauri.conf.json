@@ -5,7 +5,7 @@
   "identifier": "com.zerogdrive.bucketscout",
   "build": {
     "frontendDist": "../dist",
-    "devUrl": "http://localhost:3002",
+    "devUrl": "http://localhost:3050",
     "beforeDevCommand": "bun run dev",
     "beforeBuildCommand": "bun run build"
   },

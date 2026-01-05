@@ -1,4 +1,5 @@
 use crate::error::{AppError, Result};
+use crate::provider::ProviderType;
 use keyring::Entry;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -15,7 +16,13 @@ pub struct Account {
     pub name: String,
     pub endpoint: String,
     pub access_key_id: String,
-    pub account_id: String, // R2 account ID (used in endpoint)
+    pub provider_type: ProviderType,
+    // Provider-specific fields
+    pub cloudflare_account_id: Option<String>, // R2 only
+    pub region: Option<String>,                // AWS S3
+    // Legacy field for backwards compatibility during migration
+    #[serde(skip_serializing)]
+    pub account_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -24,11 +31,19 @@ struct AccountsMetadata {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct AccountMetadata {
     name: String,
     endpoint: String,
     access_key_id: String,
-    account_id: String,
+    #[serde(default)]
+    provider_type: ProviderType,
+    // Provider-specific fields
+    cloudflare_account_id: Option<String>,
+    region: Option<String>,
+    // Legacy field for migration
+    #[serde(rename = "account_id")]
+    legacy_account_id: Option<String>,
 }
 
 impl Default for AccountsMetadata {
@@ -105,7 +120,9 @@ impl CredentialsManager {
         endpoint: String,
         access_key_id: String,
         secret_access_key: String,
-        account_id: String,
+        provider_type: ProviderType,
+        cloudflare_account_id: Option<String>,
+        region: Option<String>,
     ) -> Result<Account> {
         let id = Uuid::new_v4().to_string();
 
@@ -123,7 +140,10 @@ impl CredentialsManager {
                 name: name.clone(),
                 endpoint: endpoint.clone(),
                 access_key_id: access_key_id.clone(),
-                account_id: account_id.clone(),
+                provider_type,
+                cloudflare_account_id: cloudflare_account_id.clone(),
+                region: region.clone(),
+                legacy_account_id: None,
             },
         );
         self.save_metadata(&metadata)?;
@@ -133,7 +153,10 @@ impl CredentialsManager {
             name,
             endpoint,
             access_key_id,
-            account_id,
+            provider_type,
+            cloudflare_account_id,
+            region,
+            account_id: None,
         })
     }
 
@@ -142,13 +165,7 @@ impl CredentialsManager {
         let accounts: Vec<Account> = metadata
             .accounts
             .into_iter()
-            .map(|(id, meta)| Account {
-                id,
-                name: meta.name,
-                endpoint: meta.endpoint,
-                access_key_id: meta.access_key_id,
-                account_id: meta.account_id,
-            })
+            .map(|(id, meta)| Self::metadata_to_account(id, meta))
             .collect();
         Ok(accounts)
     }
@@ -160,13 +177,27 @@ impl CredentialsManager {
             .get(id)
             .ok_or_else(|| AppError::NotFound(format!("Account not found: {}", id)))?;
 
-        Ok(Account {
-            id: id.to_string(),
-            name: meta.name.clone(),
-            endpoint: meta.endpoint.clone(),
-            access_key_id: meta.access_key_id.clone(),
-            account_id: meta.account_id.clone(),
-        })
+        Ok(Self::metadata_to_account(id.to_string(), meta.clone()))
+    }
+
+    /// Convert AccountMetadata to Account, handling migration from legacy format
+    fn metadata_to_account(id: String, meta: AccountMetadata) -> Account {
+        // Handle legacy accounts: if cloudflare_account_id is None but legacy_account_id exists,
+        // this is an old R2 account that needs migration
+        let cloudflare_account_id = meta
+            .cloudflare_account_id
+            .or(meta.legacy_account_id.clone());
+
+        Account {
+            id,
+            name: meta.name,
+            endpoint: meta.endpoint,
+            access_key_id: meta.access_key_id,
+            provider_type: meta.provider_type,
+            cloudflare_account_id,
+            region: meta.region,
+            account_id: meta.legacy_account_id, // Keep for API compatibility
+        }
     }
 
     pub fn get_secret_key(&self, account_id: &str) -> Result<String> {
@@ -197,7 +228,9 @@ impl CredentialsManager {
         endpoint: Option<String>,
         access_key_id: Option<String>,
         secret_access_key: Option<String>,
-        account_id: Option<String>,
+        provider_type: Option<ProviderType>,
+        cloudflare_account_id: Option<String>,
+        region: Option<String>,
     ) -> Result<Account> {
         let mut metadata = self.load_metadata()?;
         let meta = metadata
@@ -214,8 +247,14 @@ impl CredentialsManager {
         if let Some(access_key_id) = access_key_id {
             meta.access_key_id = access_key_id;
         }
-        if let Some(account_id) = account_id {
-            meta.account_id = account_id;
+        if let Some(provider_type) = provider_type {
+            meta.provider_type = provider_type;
+        }
+        if cloudflare_account_id.is_some() {
+            meta.cloudflare_account_id = cloudflare_account_id;
+        }
+        if region.is_some() {
+            meta.region = region;
         }
 
         // Update secret if provided
@@ -229,13 +268,7 @@ impl CredentialsManager {
         self.save_metadata(&metadata)?;
 
         let meta = metadata.accounts.get(id).unwrap();
-        Ok(Account {
-            id: id.to_string(),
-            name: meta.name.clone(),
-            endpoint: meta.endpoint.clone(),
-            access_key_id: meta.access_key_id.clone(),
-            account_id: meta.account_id.clone(),
-        })
+        Ok(Self::metadata_to_account(id.to_string(), meta.clone()))
     }
 }
 

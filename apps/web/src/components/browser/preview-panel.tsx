@@ -9,6 +9,7 @@ import {
   Link,
   ChevronDown,
   ChevronRight,
+  Pencil,
 } from "lucide-react";
 import { useState } from "react";
 import { Image } from "@unpic/react";
@@ -21,6 +22,7 @@ import { usePreview, useAccount, useObjectMetadata } from "@/lib/queries";
 import { useDownloadManager } from "@/hooks/use-download-manager";
 import { toast } from "sonner";
 import { PresignedUrlDialog } from "./presigned-url-dialog";
+import { EditMetadataDialog } from "./edit-metadata-dialog";
 import type { ObjectMetadata } from "@/lib/types";
 
 function formatFileSize(bytes: number): string {
@@ -58,9 +60,10 @@ export function PreviewPanel() {
   const setPreviewPanelOpen = useBrowserStore((s) => s.setPreviewPanelOpen);
 
   // Get the first selected file key for preview (show first file when multiple selected)
-  const selectedFileKey = selectedFileKeys.length > 0 ? selectedFileKeys[0] : null;
-  // Filter out folders for preview count
-  const selectedFilesCount = selectedFileKeys.length;
+  // Filter out folders (keys ending with /) - folders should never be previewed
+  const fileOnlyKeys = selectedFileKeys.filter((key) => !key.endsWith("/"));
+  const selectedFileKey = fileOnlyKeys.length > 0 ? fileOnlyKeys[0] : null;
+  const selectedFilesCount = fileOnlyKeys.length;
 
   const { data: account } = useAccount(selectedAccountId);
   const {
@@ -73,6 +76,7 @@ export function PreviewPanel() {
   const { queueDownloads } = useDownloadManager();
   const [copied, setCopied] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [editMetadataOpen, setEditMetadataOpen] = useState(false);
   const [detailsExpanded, setDetailsExpanded] = useState(true);
 
   const fileName = selectedFileKey?.split("/").pop() || "";
@@ -90,10 +94,27 @@ export function PreviewPanel() {
     }
   };
 
-  // Generate public URL for R2
+  // Generate public URL based on provider type
   const getPublicUrl = () => {
     if (!account || !selectedBucket || !selectedFileKey) return null;
-    return `https://${selectedBucket}.${account.accountId}.r2.cloudflarestorage.com/${selectedFileKey}`;
+
+    if (account.providerType === "cloudflare_r2") {
+      // R2 public URL format (requires custom domain or public bucket)
+      const accountId = account.cloudflareAccountId || account.accountId;
+      if (accountId) {
+        return `https://${selectedBucket}.${accountId}.r2.cloudflarestorage.com/${selectedFileKey}`;
+      }
+      return null;
+    } else if (account.providerType === "aws_s3") {
+      // AWS S3 public URL format (virtual-hosted style)
+      const region = account.region || "us-east-1";
+      if (region === "us-east-1") {
+        return `https://${selectedBucket}.s3.amazonaws.com/${selectedFileKey}`;
+      }
+      return `https://${selectedBucket}.s3.${region}.amazonaws.com/${selectedFileKey}`;
+    }
+
+    return null;
   };
 
   if (!selectedFileKey) {
@@ -161,7 +182,14 @@ export function PreviewPanel() {
             <PreviewContent data={preview.data} />
           ) : null}
           {/* Metadata Details Section - always show when metadata is available */}
-          {metadata && <MetadataDetails metadata={metadata} expanded={detailsExpanded} onToggle={() => setDetailsExpanded(!detailsExpanded)} />}
+          {metadata && (
+            <MetadataDetails
+              metadata={metadata}
+              expanded={detailsExpanded}
+              onToggle={() => setDetailsExpanded(!detailsExpanded)}
+              onEditMetadata={() => setEditMetadataOpen(true)}
+            />
+          )}
         </ScrollArea>
       </div>
 
@@ -238,6 +266,17 @@ export function PreviewPanel() {
           bucket={selectedBucket}
           fileKey={selectedFileKey}
           fileName={fileName}
+        />
+      )}
+
+      {/* Edit Metadata Dialog */}
+      {selectedAccountId && selectedBucket && selectedFileKey && (
+        <EditMetadataDialog
+          open={editMetadataOpen}
+          onOpenChange={setEditMetadataOpen}
+          accountId={selectedAccountId}
+          bucket={selectedBucket}
+          objectKey={selectedFileKey}
         />
       )}
     </div>
@@ -328,10 +367,12 @@ function MetadataDetails({
   metadata,
   expanded,
   onToggle,
+  onEditMetadata,
 }: {
   metadata: ObjectMetadata;
   expanded: boolean;
   onToggle: () => void;
+  onEditMetadata: () => void;
 }) {
   const rows: { label: string; value: string | undefined }[] = [
     { label: "Last Modified", value: formatDate(metadata.lastModified) },
@@ -354,18 +395,29 @@ function MetadataDetails({
 
   return (
     <div className="border-t mx-4 mt-4">
-      <button
-        type="button"
-        onClick={onToggle}
-        className="flex items-center gap-2 w-full py-3 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-      >
-        {expanded ? (
-          <ChevronDown className="h-3.5 w-3.5" />
-        ) : (
-          <ChevronRight className="h-3.5 w-3.5" />
-        )}
-        Details
-      </button>
+      <div className="flex items-center justify-between py-3">
+        <button
+          type="button"
+          onClick={onToggle}
+          className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+        >
+          {expanded ? (
+            <ChevronDown className="h-3.5 w-3.5" />
+          ) : (
+            <ChevronRight className="h-3.5 w-3.5" />
+          )}
+          Details
+        </button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onEditMetadata}
+          className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+        >
+          <Pencil className="h-3 w-3 mr-1" />
+          Edit
+        </Button>
+      </div>
       {expanded && (
         <div className="pb-4 space-y-2">
           {definedRows.map((row) => (

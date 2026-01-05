@@ -107,7 +107,14 @@ pub async fn get_preview(
     let secret = credentials.get_secret_key(&account_id)?;
 
     let client = s3_clients
-        .get_or_create_client(&account_id, &account.endpoint, &account.access_key_id, &secret)
+        .get_or_create_client(
+            &account_id,
+            &account.endpoint,
+            &account.access_key_id,
+            &secret,
+            account.provider_type,
+            account.region.as_deref(),
+        )
         .await?;
 
     // First, get metadata to check size and content type
@@ -257,7 +264,14 @@ pub async fn get_thumbnail(
     let secret = credentials.get_secret_key(&account_id)?;
 
     let client = s3_clients
-        .get_or_create_client(&account_id, &account.endpoint, &account.access_key_id, &secret)
+        .get_or_create_client(
+            &account_id,
+            &account.endpoint,
+            &account.access_key_id,
+            &secret,
+            account.provider_type,
+            account.region.as_deref(),
+        )
         .await?;
 
     // First, get metadata to check if this is an image and its size

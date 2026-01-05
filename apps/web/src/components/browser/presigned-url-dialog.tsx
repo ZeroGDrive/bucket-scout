@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Copy, Check, ExternalLink } from "lucide-react";
 import { useGeneratePresignedUrl } from "@/lib/queries";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, parseS3Error } from "@/lib/utils";
 
 const EXPIRY_OPTIONS = [
   { value: "3600", label: "1 hour" },
@@ -58,7 +58,7 @@ export function PresignedUrlDialog({
       setExpiresAt(result.expiresAt);
     } catch (error) {
       toast.error("Failed to generate shareable link", {
-        description: String(error),
+        description: parseS3Error(error),
       });
     }
   };
