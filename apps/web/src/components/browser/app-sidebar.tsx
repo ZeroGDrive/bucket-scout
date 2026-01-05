@@ -7,8 +7,8 @@ import {
   MoreVertical,
   Trash2,
   RefreshCw,
-  Sparkles,
 } from "lucide-react";
+import { Logo } from "@/components/icons/logo";
 import {
   Sidebar,
   SidebarContent,
@@ -81,7 +81,7 @@ export function AppSidebar() {
         <SidebarHeader className="p-4">
           <div className="flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
-              <Sparkles className="h-4 w-4" />
+              <Logo className="h-5 w-5" />
             </div>
             <div className="flex flex-col group-data-[collapsible=icon]:hidden">
               <span className="text-sm font-semibold tracking-tight">BucketScout</span>
