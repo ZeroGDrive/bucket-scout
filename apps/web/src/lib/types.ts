@@ -388,3 +388,73 @@ export interface AnalyticsProgressPayload {
   objectsProcessed: number;
   currentPrefix: string;
 }
+
+// Operations History types
+export type OperationType =
+  | "upload"
+  | "download"
+  | "delete"
+  | "copy"
+  | "move"
+  | "rename"
+  | "create_folder";
+
+export type OperationStatus =
+  | "pending"
+  | "in_progress"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
+export interface Operation {
+  id: number;
+  timestamp: number;
+  accountId: string;
+  bucket: string;
+  operation: OperationType;
+  sourceKey?: string;
+  destKey?: string;
+  size?: number;
+  durationMs?: number;
+  status: OperationStatus;
+  errorMessage?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface OperationFilter {
+  accountId?: string;
+  bucket?: string;
+  operation?: OperationType;
+  status?: OperationStatus;
+  fromTimestamp?: number;
+  toTimestamp?: number;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface OperationsResponse {
+  operations: Operation[];
+  total: number;
+  hasMore: boolean;
+}
+
+export interface OperationStats {
+  totalOperations: number;
+  totalBytes: number;
+  completed: number;
+  failed: number;
+  byType: { operation: string; count: number }[];
+}
+
+export interface LogOperationInput {
+  accountId: string;
+  bucket: string;
+  operation: OperationType;
+  sourceKey?: string;
+  destKey?: string;
+  size?: number;
+  status: OperationStatus;
+  durationMs?: number;
+  errorMessage?: string;
+}

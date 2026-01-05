@@ -62,3 +62,18 @@ tauri-plugin-process = "2"
 
 # ZIP file creation
 zip = { version = "2", default-features = false, features = ["deflate"] }
+
+# SQLite database
+rusqlite = { version = "0.31", features = ["bundled"] }
+r2d2 = "0.8"
+r2d2_sqlite = "0.24"
+
+# Directory paths (for database location)
+dirs = "5"
+
+# Content hashing (for sync and duplicate detection)
+sha2 = "0.10"
+crc32fast = "1.4"
+
+# File system watching (for sync)
+notify = "6.1"

@@ -25,6 +25,13 @@ import type {
   CorsRuleConfig,
   LifecycleRuleConfig,
   BucketAnalytics,
+  // History types
+  Operation,
+  OperationFilter,
+  OperationsResponse,
+  OperationStats,
+  OperationStatus,
+  LogOperationInput,
 } from "./types";
 
 // Credentials commands
@@ -435,5 +442,43 @@ export const preview = {
       bucket: params.bucket,
       key: params.key,
       size: params.size,
+    }),
+};
+
+// History commands
+export const history = {
+  getOperations: (filter: OperationFilter) =>
+    invoke<OperationsResponse>("get_operations", { filter }),
+
+  getOperation: (id: number) => invoke<Operation | null>("get_operation", { id }),
+
+  getStats: (params: { accountId?: string; bucket?: string; days?: number }) =>
+    invoke<OperationStats>("get_operation_stats", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+      days: params.days,
+    }),
+
+  cleanup: (days?: number) => invoke<number>("cleanup_history", { days }),
+
+  export: (params: { filter: OperationFilter; format: "csv" | "json" }) =>
+    invoke<string>("export_operations", {
+      filter: params.filter,
+      format: params.format,
+    }),
+
+  log: (input: LogOperationInput) => invoke<number>("log_operation", { input }),
+
+  updateStatus: (params: {
+    id: number;
+    status: OperationStatus;
+    durationMs?: number;
+    errorMessage?: string;
+  }) =>
+    invoke<void>("update_operation", {
+      id: params.id,
+      status: params.status,
+      durationMs: params.durationMs,
+      errorMessage: params.errorMessage,
     }),
 };

@@ -10,6 +10,7 @@ import {
   Loader2,
   Settings2,
   BarChart3,
+  History,
 } from "lucide-react";
 import { Logo } from "@/components/icons/logo";
 import {
@@ -65,6 +66,7 @@ import { AddAccountDialog } from "@/components/accounts/add-account-dialog";
 import { CreateBucketDialog } from "@/components/browser/create-bucket-dialog";
 import { BucketConfigDialog } from "@/components/browser/bucket-config-dialog";
 import { BucketAnalyticsDialog } from "@/components/browser/bucket-analytics-dialog";
+import { OperationsHistoryDialog } from "@/components/history";
 import { toast } from "sonner";
 import { parseS3Error } from "@/lib/utils";
 
@@ -92,6 +94,7 @@ export function AppSidebar() {
     open: false,
     bucketName: "",
   });
+  const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [forceDelete, setForceDelete] = useState(false);
 
   const selectedAccountId = useBrowserStore((s) => s.selectedAccountId);
@@ -397,7 +400,18 @@ export function AppSidebar() {
         </SidebarContent>
 
         <SidebarFooter className="p-3 border-t border-sidebar-border">
-          <div className="flex items-center gap-2 text-[10px] text-muted-foreground group-data-[collapsible=icon]:hidden">
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => setHistoryDialogOpen(true)}
+                tooltip="Operations History"
+              >
+                <History className="h-4 w-4 shrink-0" />
+                <span>History</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+          <div className="flex items-center gap-2 text-[10px] text-muted-foreground group-data-[collapsible=icon]:hidden mt-2">
             <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
             <span className="uppercase tracking-wider">Connected</span>
           </div>
@@ -436,6 +450,11 @@ export function AppSidebar() {
           bucket={analyticsBucketDialog.bucketName}
         />
       )}
+
+      <OperationsHistoryDialog
+        open={historyDialogOpen}
+        onOpenChange={setHistoryDialogOpen}
+      />
 
       <AlertDialog
         open={deleteBucketDialog.open}
