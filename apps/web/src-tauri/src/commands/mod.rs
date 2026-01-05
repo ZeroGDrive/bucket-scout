@@ -1,3 +1,4 @@
+pub mod analytics;
 pub mod buckets;
 pub mod credentials;
 pub mod objects;

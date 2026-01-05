@@ -58,6 +58,7 @@ export function SearchInput({ className }: SearchInputProps) {
         onChange={handleChange}
         disabled={!selectedBucket}
         className="h-7 w-48 pl-7 pr-7 text-sm"
+        data-search-input
       />
       {searchQuery && (
         <Button

@@ -12,6 +12,19 @@ import type {
   RenameResult,
   CopyMoveResult,
   ProviderType,
+  ListVersionsResponse,
+  RestoreVersionResult,
+  ObjectTag,
+  ObjectTagsResponse,
+  BucketConfigSummary,
+  BucketVersioningConfig,
+  BucketCorsConfig,
+  BucketLifecycleConfig,
+  BucketEncryptionConfig,
+  BucketLoggingConfig,
+  CorsRuleConfig,
+  LifecycleRuleConfig,
+  BucketAnalytics,
 } from "./types";
 
 // Credentials commands
@@ -79,6 +92,95 @@ export const buckets = {
       accountId: params.accountId,
       bucketName: params.bucketName,
       force: params.force,
+    }),
+
+  // Bucket configuration commands
+  getConfig: (params: { accountId: string; bucket: string }) =>
+    invoke<BucketConfigSummary>("get_bucket_config", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+    }),
+
+  getVersioning: (params: { accountId: string; bucket: string }) =>
+    invoke<BucketVersioningConfig>("get_bucket_versioning", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+    }),
+
+  setVersioning: (params: { accountId: string; bucket: string; enabled: boolean }) =>
+    invoke<void>("put_bucket_versioning", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+      enabled: params.enabled,
+    }),
+
+  getCors: (params: { accountId: string; bucket: string }) =>
+    invoke<BucketCorsConfig>("get_bucket_cors", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+    }),
+
+  setCors: (params: { accountId: string; bucket: string; rules: CorsRuleConfig[] }) =>
+    invoke<void>("put_bucket_cors", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+      rules: params.rules,
+    }),
+
+  deleteCors: (params: { accountId: string; bucket: string }) =>
+    invoke<void>("delete_bucket_cors", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+    }),
+
+  getLifecycle: (params: { accountId: string; bucket: string }) =>
+    invoke<BucketLifecycleConfig>("get_bucket_lifecycle", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+    }),
+
+  setLifecycle: (params: {
+    accountId: string;
+    bucket: string;
+    rules: LifecycleRuleConfig[];
+  }) =>
+    invoke<void>("put_bucket_lifecycle", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+      rules: params.rules,
+    }),
+
+  deleteLifecycle: (params: { accountId: string; bucket: string }) =>
+    invoke<void>("delete_bucket_lifecycle", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+    }),
+
+  getEncryption: (params: { accountId: string; bucket: string }) =>
+    invoke<BucketEncryptionConfig>("get_bucket_encryption", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+    }),
+
+  getLogging: (params: { accountId: string; bucket: string }) =>
+    invoke<BucketLoggingConfig>("get_bucket_logging", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+    }),
+
+  getAnalytics: (params: {
+    accountId: string;
+    bucket: string;
+    prefix?: string;
+    topNLargest?: number;
+    topNFolders?: number;
+  }) =>
+    invoke<BucketAnalytics>("get_bucket_analytics", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+      prefix: params.prefix,
+      topNLargest: params.topNLargest,
+      topNFolders: params.topNFolders,
     }),
 };
 
@@ -262,6 +364,58 @@ export const objects = {
       contentDisposition: params.contentDisposition,
       contentEncoding: params.contentEncoding,
       customMetadata: params.customMetadata,
+    }),
+
+  listVersions: (params: {
+    accountId: string;
+    bucket: string;
+    key: string;
+    keyMarker?: string;
+    versionIdMarker?: string;
+    maxKeys?: number;
+  }) =>
+    invoke<ListVersionsResponse>("list_object_versions", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+      key: params.key,
+      keyMarker: params.keyMarker,
+      versionIdMarker: params.versionIdMarker,
+      maxKeys: params.maxKeys,
+    }),
+
+  restoreVersion: (params: {
+    accountId: string;
+    bucket: string;
+    key: string;
+    versionId: string;
+  }) =>
+    invoke<RestoreVersionResult>("restore_object_version", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+      key: params.key,
+      versionId: params.versionId,
+    }),
+
+  getTags: (params: { accountId: string; bucket: string; key: string }) =>
+    invoke<ObjectTagsResponse>("get_object_tagging", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+      key: params.key,
+    }),
+
+  setTags: (params: { accountId: string; bucket: string; key: string; tags: ObjectTag[] }) =>
+    invoke<ObjectTagsResponse>("put_object_tagging", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+      key: params.key,
+      tags: params.tags,
+    }),
+
+  deleteTags: (params: { accountId: string; bucket: string; key: string }) =>
+    invoke<void>("delete_object_tagging", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+      key: params.key,
     }),
 };
 

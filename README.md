@@ -17,11 +17,13 @@
 ## Features
 
 ### Multi-Provider Support
+
 - **Cloudflare R2** - Full support with account ID configuration and location hints
 - **AWS S3** - Complete integration with 16+ region options
 - **Multiple Accounts** - Manage unlimited storage accounts simultaneously
 
 ### File Operations
+
 - **Upload** - Drag & drop or click to upload with multipart support for large files
 - **Download** - Stream downloads with real-time progress tracking
 - **Delete** - Batch delete with confirmation dialogs
@@ -30,11 +32,13 @@
 - **Multi-select** - Batch operations on multiple files at once
 
 ### Folder Management
+
 - **Create Folders** - Organize your storage with folder structures
 - **Recursive Operations** - Copy, move, or delete entire folder trees
 - **Download as ZIP** - Download complete folders as compressed archives
 
 ### File Preview
+
 - **Images** - Preview JPG, PNG, GIF, WebP, BMP, SVG with thumbnails
 - **Text Files** - View TXT, MD, CSV, LOG, and 15+ code file formats
 - **JSON** - Syntax-aware JSON preview
@@ -42,26 +46,31 @@
 - **Metadata** - View content type, size, ETag, storage class, and custom metadata
 
 ### Sharing & Access
+
 - **Presigned URLs** - Generate temporary shareable links (1h, 6h, 24h, 7 days)
 - **Public URLs** - Quick access to public object URLs
 - **One-click Copy** - Copy links to clipboard instantly
 
 ### Bucket Management
+
 - **Create Buckets** - With region/location selection per provider
 - **Delete Buckets** - Safe delete or force delete with all contents
 - **List All Buckets** - View all buckets across your accounts
 
 ### Search & Navigation
+
 - **Full-text Search** - Find files across your entire bucket
 - **Breadcrumb Navigation** - Easy folder traversal
 - **Grid & List Views** - Switch between viewing modes
 
 ### Metadata Editing
+
 - **Content-Type** - Set MIME types
 - **Cache-Control** - Configure caching headers
 - **Custom Metadata** - Add key-value pairs to any object
 
 ### Desktop Experience
+
 - **Native App** - Built with Tauri for performance
 - **Drag & Drop** - Drop files directly from your file explorer
 - **Auto Updates** - Stay up to date automatically
@@ -131,15 +140,15 @@ bucket-scout/
 
 ## Available Scripts
 
-| Command | Description |
-|---------|-------------|
-| `bun run dev` | Start all apps in development mode |
-| `bun run build` | Build all applications |
-| `bun run dev:web` | Start only the web application |
-| `bun run check-types` | Check TypeScript types |
-| `bun run check` | Run Oxlint and Oxfmt |
-| `cd apps/web && bun run desktop:dev` | Start Tauri desktop app |
-| `cd apps/web && bun run desktop:build` | Build Tauri desktop app |
+| Command                                | Description                        |
+| -------------------------------------- | ---------------------------------- |
+| `bun run dev`                          | Start all apps in development mode |
+| `bun run build`                        | Build all applications             |
+| `bun run dev:web`                      | Start only the web application     |
+| `bun run check-types`                  | Check TypeScript types             |
+| `bun run check`                        | Run Oxlint and Oxfmt               |
+| `cd apps/web && bun run desktop:dev`   | Start Tauri desktop app            |
+| `cd apps/web && bun run desktop:build` | Build Tauri desktop app            |
 
 ---
 
@@ -155,8 +164,8 @@ If you find BucketScout useful, consider supporting its development:
 
 ### Crypto
 
-| Network | Address |
-|---------|---------|
+| Network           | Address                                      |
+| ----------------- | -------------------------------------------- |
 | **ERC-20 (USDT)** | `0x424dd2471d8231140f64c292845fcb2ca0cb1f06` |
 
 ---

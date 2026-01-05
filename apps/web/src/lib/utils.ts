@@ -17,7 +17,8 @@ const S3_ERROR_MESSAGES: Record<string, string> = {
   AccessDenied: "Access denied. Check your credentials and permissions.",
   InvalidAccessKeyId: "The access key ID is invalid.",
   SignatureDoesNotMatch: "The secret access key is incorrect.",
-  InvalidBucketName: "The bucket name is invalid. Use only lowercase letters, numbers, hyphens, and periods (3-63 characters).",
+  InvalidBucketName:
+    "The bucket name is invalid. Use only lowercase letters, numbers, hyphens, and periods (3-63 characters).",
   TooManyBuckets: "You have reached the maximum number of buckets allowed.",
   OperationAborted: "The operation was aborted. Please try again.",
   SlowDown: "Too many requests. Please wait a moment and try again.",
@@ -45,7 +46,7 @@ export function parseS3Error(error: unknown): string {
       return S3_ERROR_MESSAGES[errorCode];
     }
     // Return the error code in a readable format if not in our mapping
-    return `${errorCode.replace(/([A-Z])/g, ' $1').trim()}.`;
+    return `${errorCode.replace(/([A-Z])/g, " $1").trim()}.`;
   }
 
   // Try to extract message from the error string

@@ -10,6 +10,8 @@ import {
   ChevronDown,
   ChevronRight,
   Pencil,
+  History,
+  Tag,
 } from "lucide-react";
 import { useState } from "react";
 import { Image } from "@unpic/react";
@@ -23,6 +25,8 @@ import { useDownloadManager } from "@/hooks/use-download-manager";
 import { toast } from "sonner";
 import { PresignedUrlDialog } from "./presigned-url-dialog";
 import { EditMetadataDialog } from "./edit-metadata-dialog";
+import { VersionHistoryDialog } from "./version-history-dialog";
+import { TagsEditorDialog } from "./tags-editor-dialog";
 import type { ObjectMetadata } from "@/lib/types";
 
 function formatFileSize(bytes: number): string {
@@ -77,10 +81,15 @@ export function PreviewPanel() {
   const [copied, setCopied] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [editMetadataOpen, setEditMetadataOpen] = useState(false);
+  const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
+  const [tagsEditorOpen, setTagsEditorOpen] = useState(false);
   const [detailsExpanded, setDetailsExpanded] = useState(true);
 
   const fileName = selectedFileKey?.split("/").pop() || "";
   const fileExtension = getFileExtension(fileName);
+
+  // Check if provider supports tagging (R2 doesn't support it yet)
+  const supportsTagging = account?.providerType !== "cloudflare_r2";
 
   const handleClose = () => {
     setPreviewPanelOpen(false);
@@ -245,16 +254,38 @@ export function PreviewPanel() {
           </Button>
         </div>
 
-        {/* Share Button */}
-        <Button
-          variant="secondary"
-          size="sm"
-          className="w-full"
-          onClick={() => setShareDialogOpen(true)}
-        >
-          <Link className="h-3.5 w-3.5 mr-1.5" />
-          Get Shareable Link
-        </Button>
+        {/* Share and Versions Buttons */}
+        <div className="flex gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            className="flex-1"
+            onClick={() => setShareDialogOpen(true)}
+          >
+            <Link className="h-3.5 w-3.5 mr-1.5" />
+            Share
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="flex-1"
+            onClick={() => setVersionHistoryOpen(true)}
+          >
+            <History className="h-3.5 w-3.5 mr-1.5" />
+            Versions
+          </Button>
+          {supportsTagging && (
+            <Button
+              variant="secondary"
+              size="sm"
+              className="flex-1"
+              onClick={() => setTagsEditorOpen(true)}
+            >
+              <Tag className="h-3.5 w-3.5 mr-1.5" />
+              Tags
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Share Dialog */}
@@ -274,6 +305,28 @@ export function PreviewPanel() {
         <EditMetadataDialog
           open={editMetadataOpen}
           onOpenChange={setEditMetadataOpen}
+          accountId={selectedAccountId}
+          bucket={selectedBucket}
+          objectKey={selectedFileKey}
+        />
+      )}
+
+      {/* Version History Dialog */}
+      {selectedAccountId && selectedBucket && selectedFileKey && (
+        <VersionHistoryDialog
+          open={versionHistoryOpen}
+          onOpenChange={setVersionHistoryOpen}
+          accountId={selectedAccountId}
+          bucket={selectedBucket}
+          objectKey={selectedFileKey}
+        />
+      )}
+
+      {/* Tags Editor Dialog - only for providers that support tagging */}
+      {supportsTagging && selectedAccountId && selectedBucket && selectedFileKey && (
+        <TagsEditorDialog
+          open={tagsEditorOpen}
+          onOpenChange={setTagsEditorOpen}
           accountId={selectedAccountId}
           bucket={selectedBucket}
           objectKey={selectedFileKey}
@@ -389,9 +442,7 @@ function MetadataDetails({
   const definedRows = rows.filter((row) => row.value && row.value !== "-");
 
   // Custom metadata
-  const customMetadata = metadata.metadata
-    ? Object.entries(metadata.metadata)
-    : [];
+  const customMetadata = metadata.metadata ? Object.entries(metadata.metadata) : [];
 
   return (
     <div className="border-t mx-4 mt-4">

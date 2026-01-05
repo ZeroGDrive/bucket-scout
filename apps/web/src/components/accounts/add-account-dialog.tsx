@@ -198,7 +198,12 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
           </div>
 
           <div className="flex justify-end gap-2 pt-4">
-            <Button type="button" variant="outline" onClick={handleClose} disabled={addAccount.isPending}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleClose}
+              disabled={addAccount.isPending}
+            >
               Cancel
             </Button>
             <Button type="submit" disabled={addAccount.isPending}>

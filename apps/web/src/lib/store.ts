@@ -21,6 +21,12 @@ interface BrowserState {
   searchQuery: string;
   searchRecursive: boolean; // Toggle for recursive search
 
+  // Search filters
+  filterMinSize: number | null; // bytes
+  filterMaxSize: number | null; // bytes
+  filterDateFrom: string | null; // ISO date string
+  filterDateTo: string | null; // ISO date string
+
   // Sort state
   sortBy: SortBy;
   sortDirection: SortDirection;
@@ -51,6 +57,14 @@ interface BrowserState {
   setSearchRecursive: (recursive: boolean) => void;
   clearSearch: () => void;
 
+  // Filter actions
+  setFilterMinSize: (size: number | null) => void;
+  setFilterMaxSize: (size: number | null) => void;
+  setFilterDateFrom: (date: string | null) => void;
+  setFilterDateTo: (date: string | null) => void;
+  clearFilters: () => void;
+  hasActiveFilters: () => boolean;
+
   // Sort actions
   setSortBy: (sortBy: SortBy) => void;
   setSortDirection: (direction: SortDirection) => void;
@@ -74,6 +88,10 @@ export const useBrowserStore = create<BrowserState>()(
       clipboard: null,
       searchQuery: "",
       searchRecursive: true,
+      filterMinSize: null,
+      filterMaxSize: null,
+      filterDateFrom: null,
+      filterDateTo: null,
       sortBy: "name",
       sortDirection: "asc",
       viewMode: "list",
@@ -227,6 +245,28 @@ export const useBrowserStore = create<BrowserState>()(
       setSearchRecursive: (recursive) => set({ searchRecursive: recursive }),
 
       clearSearch: () => set({ searchQuery: "" }),
+
+      // Filter actions
+      setFilterMinSize: (size) => set({ filterMinSize: size }),
+      setFilterMaxSize: (size) => set({ filterMaxSize: size }),
+      setFilterDateFrom: (date) => set({ filterDateFrom: date }),
+      setFilterDateTo: (date) => set({ filterDateTo: date }),
+      clearFilters: () =>
+        set({
+          filterMinSize: null,
+          filterMaxSize: null,
+          filterDateFrom: null,
+          filterDateTo: null,
+        }),
+      hasActiveFilters: () => {
+        const state = get();
+        return (
+          state.filterMinSize !== null ||
+          state.filterMaxSize !== null ||
+          state.filterDateFrom !== null ||
+          state.filterDateTo !== null
+        );
+      },
 
       // Sort actions
       setSortBy: (sortBy) => set({ sortBy }),

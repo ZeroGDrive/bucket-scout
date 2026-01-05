@@ -6,6 +6,10 @@ export const queryKeys = {
   accounts: ["accounts"] as const,
   account: (id: string) => ["accounts", id] as const,
   buckets: (accountId: string) => ["buckets", accountId] as const,
+  bucketConfig: (accountId: string, bucket: string) =>
+    ["bucketConfig", accountId, bucket] as const,
+  bucketAnalytics: (accountId: string, bucket: string) =>
+    ["bucketAnalytics", accountId, bucket] as const,
   objects: (accountId: string, bucket: string, prefix: string) =>
     ["objects", accountId, bucket, prefix] as const,
   search: (accountId: string, bucket: string, prefix: string, query: string) =>
@@ -16,6 +20,10 @@ export const queryKeys = {
     ["thumbnail", accountId, bucket, key] as const,
   metadata: (accountId: string, bucket: string, key: string) =>
     ["metadata", accountId, bucket, key] as const,
+  versions: (accountId: string, bucket: string, key: string) =>
+    ["versions", accountId, bucket, key] as const,
+  tags: (accountId: string, bucket: string, key: string) =>
+    ["tags", accountId, bucket, key] as const,
 };
 
 // Account queries
@@ -337,5 +345,238 @@ export function useUpdateObjectMetadata() {
         queryKey: queryKeys.preview(variables.accountId, variables.bucket, variables.key),
       });
     },
+  });
+}
+
+// Object versions query with pagination
+export function useObjectVersions(
+  accountId: string | null,
+  bucket: string | null,
+  key: string | null,
+) {
+  return useInfiniteQuery({
+    queryKey: queryKeys.versions(accountId || "", bucket || "", key || ""),
+    queryFn: ({ pageParam }) =>
+      objects.listVersions({
+        accountId: accountId!,
+        bucket: bucket!,
+        key: key!,
+        keyMarker: pageParam?.keyMarker,
+        versionIdMarker: pageParam?.versionIdMarker,
+        maxKeys: 50,
+      }),
+    getNextPageParam: (lastPage) =>
+      lastPage.isTruncated
+        ? { keyMarker: lastPage.keyMarker, versionIdMarker: lastPage.versionIdMarker }
+        : undefined,
+    initialPageParam: undefined as { keyMarker?: string; versionIdMarker?: string } | undefined,
+    enabled: !!accountId && !!bucket && !!key,
+    staleTime: 30_000, // 30 seconds
+  });
+}
+
+// Restore version mutation
+export function useRestoreVersion() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (params: {
+      accountId: string;
+      bucket: string;
+      key: string;
+      versionId: string;
+    }) => objects.restoreVersion(params),
+    onSuccess: (_, variables) => {
+      // Invalidate versions list to show the new restored version
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.versions(variables.accountId, variables.bucket, variables.key),
+      });
+      // Also invalidate objects list as the current version changed
+      queryClient.invalidateQueries({
+        queryKey: ["objects", variables.accountId, variables.bucket],
+      });
+      // Invalidate metadata
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.metadata(variables.accountId, variables.bucket, variables.key),
+      });
+    },
+  });
+}
+
+// Object tags query
+export function useObjectTags(
+  accountId: string | null,
+  bucket: string | null,
+  key: string | null,
+) {
+  return useQuery({
+    queryKey: queryKeys.tags(accountId || "", bucket || "", key || ""),
+    queryFn: () =>
+      objects.getTags({
+        accountId: accountId!,
+        bucket: bucket!,
+        key: key!,
+      }),
+    enabled: !!accountId && !!bucket && !!key,
+    staleTime: 30_000, // 30 seconds
+  });
+}
+
+// Set tags mutation
+export function useSetObjectTags() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (params: {
+      accountId: string;
+      bucket: string;
+      key: string;
+      tags: import("./types").ObjectTag[];
+    }) => objects.setTags(params),
+    onSuccess: (_, variables) => {
+      // Invalidate tags for this specific object
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.tags(variables.accountId, variables.bucket, variables.key),
+      });
+    },
+  });
+}
+
+// Delete tags mutation
+export function useDeleteObjectTags() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (params: { accountId: string; bucket: string; key: string }) =>
+      objects.deleteTags(params),
+    onSuccess: (_, variables) => {
+      // Invalidate tags for this specific object
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.tags(variables.accountId, variables.bucket, variables.key),
+      });
+    },
+  });
+}
+
+// ============================================================================
+// Bucket Configuration Queries
+// ============================================================================
+
+// Get full bucket configuration (versioning, CORS, lifecycle, encryption, logging)
+export function useBucketConfig(accountId: string | null, bucket: string | null) {
+  return useQuery({
+    queryKey: queryKeys.bucketConfig(accountId || "", bucket || ""),
+    queryFn: () =>
+      buckets.getConfig({
+        accountId: accountId!,
+        bucket: bucket!,
+      }),
+    enabled: !!accountId && !!bucket,
+    staleTime: 60_000, // 1 minute - config doesn't change often
+  });
+}
+
+// Toggle versioning mutation
+export function useSetBucketVersioning() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (params: { accountId: string; bucket: string; enabled: boolean }) =>
+      buckets.setVersioning(params),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.bucketConfig(variables.accountId, variables.bucket),
+      });
+    },
+  });
+}
+
+// Set CORS rules mutation
+export function useSetBucketCors() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (params: {
+      accountId: string;
+      bucket: string;
+      rules: import("./types").CorsRuleConfig[];
+    }) => buckets.setCors(params),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.bucketConfig(variables.accountId, variables.bucket),
+      });
+    },
+  });
+}
+
+// Delete CORS configuration mutation
+export function useDeleteBucketCors() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (params: { accountId: string; bucket: string }) => buckets.deleteCors(params),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.bucketConfig(variables.accountId, variables.bucket),
+      });
+    },
+  });
+}
+
+// Set lifecycle rules mutation
+export function useSetBucketLifecycle() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (params: {
+      accountId: string;
+      bucket: string;
+      rules: import("./types").LifecycleRuleConfig[];
+    }) => buckets.setLifecycle(params),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.bucketConfig(variables.accountId, variables.bucket),
+      });
+    },
+  });
+}
+
+// Delete lifecycle configuration mutation
+export function useDeleteBucketLifecycle() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (params: { accountId: string; bucket: string }) =>
+      buckets.deleteLifecycle(params),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.bucketConfig(variables.accountId, variables.bucket),
+      });
+    },
+  });
+}
+
+// ============================================================================
+// Bucket Analytics Queries
+// ============================================================================
+
+// Get bucket analytics (folder sizes, type breakdown, large files)
+export function useBucketAnalytics(
+  accountId: string | null,
+  bucket: string | null,
+  options?: { enabled?: boolean },
+) {
+  return useQuery({
+    queryKey: queryKeys.bucketAnalytics(accountId || "", bucket || ""),
+    queryFn: () =>
+      buckets.getAnalytics({
+        accountId: accountId!,
+        bucket: bucket!,
+        topNLargest: 20,
+        topNFolders: 10,
+      }),
+    enabled: options?.enabled !== false && !!accountId && !!bucket,
+    staleTime: 5 * 60 * 1000, // 5 minutes - analytics are expensive to compute
+    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
   });
 }

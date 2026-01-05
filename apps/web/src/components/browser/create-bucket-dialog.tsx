@@ -101,7 +101,10 @@ export function CreateBucketDialog({ open, onOpenChange, accountId }: CreateBuck
           {isR2 && (
             <div className="space-y-2">
               <Label htmlFor="location">Location Hint (Optional)</Label>
-              <Select value={location || "auto"} onValueChange={(val) => setLocation(val === "auto" ? "" : val || "")}>
+              <Select
+                value={location || "auto"}
+                onValueChange={(val) => setLocation(val === "auto" ? "" : val || "")}
+              >
                 <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -123,7 +126,10 @@ export function CreateBucketDialog({ open, onOpenChange, accountId }: CreateBuck
           {isAwsS3 && (
             <div className="space-y-2">
               <Label htmlFor="region">Region</Label>
-              <Select value={location || account?.region || "us-east-1"} onValueChange={(val) => val && setLocation(val)}>
+              <Select
+                value={location || account?.region || "us-east-1"}
+                onValueChange={(val) => val && setLocation(val)}
+              >
                 <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -139,7 +145,12 @@ export function CreateBucketDialog({ open, onOpenChange, accountId }: CreateBuck
           )}
 
           <div className="flex justify-end gap-2 pt-4">
-            <Button type="button" variant="outline" onClick={handleClose} disabled={createBucket.isPending}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleClose}
+              disabled={createBucket.isPending}
+            >
               Cancel
             </Button>
             <Button type="submit" disabled={createBucket.isPending}>

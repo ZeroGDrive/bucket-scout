@@ -31,7 +31,7 @@ export function EditMetadataDialog({
   const { data: metadata, isLoading: metadataLoading } = useObjectMetadata(
     open ? accountId : null,
     open ? bucket : null,
-    open ? objectKey : null
+    open ? objectKey : null,
   );
 
   const updateMetadata = useUpdateObjectMetadata();
@@ -47,7 +47,7 @@ export function EditMetadataDialog({
       // Convert metadata object to array of key-value pairs
       if (metadata.metadata) {
         setCustomMetadata(
-          Object.entries(metadata.metadata).map(([key, value]) => ({ key, value }))
+          Object.entries(metadata.metadata).map(([key, value]) => ({ key, value })),
         );
       } else {
         setCustomMetadata([]);
@@ -63,11 +63,7 @@ export function EditMetadataDialog({
     setCustomMetadata(customMetadata.filter((_, i) => i !== index));
   };
 
-  const handleUpdateCustomMetadata = (
-    index: number,
-    field: "key" | "value",
-    value: string
-  ) => {
+  const handleUpdateCustomMetadata = (index: number, field: "key" | "value", value: string) => {
     const updated = [...customMetadata];
     updated[index][field] = value;
     setCustomMetadata(updated);
@@ -169,12 +165,7 @@ export function EditMetadataDialog({
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label>Custom Metadata</Label>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleAddCustomMetadata}
-                >
+                <Button type="button" variant="ghost" size="sm" onClick={handleAddCustomMetadata}>
                   <Plus className="h-4 w-4 mr-1" />
                   Add
                 </Button>
@@ -187,17 +178,13 @@ export function EditMetadataDialog({
                     <div key={index} className="flex gap-2">
                       <Input
                         value={item.key}
-                        onChange={(e) =>
-                          handleUpdateCustomMetadata(index, "key", e.target.value)
-                        }
+                        onChange={(e) => handleUpdateCustomMetadata(index, "key", e.target.value)}
                         placeholder="Key"
                         className="flex-1"
                       />
                       <Input
                         value={item.value}
-                        onChange={(e) =>
-                          handleUpdateCustomMetadata(index, "value", e.target.value)
-                        }
+                        onChange={(e) => handleUpdateCustomMetadata(index, "value", e.target.value)}
                         placeholder="Value"
                         className="flex-1"
                       />

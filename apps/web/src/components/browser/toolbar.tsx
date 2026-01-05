@@ -27,6 +27,7 @@ import { UploadButton } from "./upload-button";
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog";
 import { CreateFolderDialog } from "./create-folder-dialog";
 import { SearchInput } from "./search-input";
+import { SearchFilters } from "./search-filters";
 import { useDownloadManager } from "@/hooks/use-download-manager";
 import { toast } from "sonner";
 import type { FileItem } from "@/lib/types";
@@ -46,7 +47,10 @@ export function Toolbar() {
   const clearSelection = useBrowserStore((s) => s.clearSelection);
 
   const prefix = currentPath.length > 0 ? currentPath.join("/") + "/" : "";
-  const { data } = useObjects(selectedAccountId, selectedBucket, prefix);
+  // Use isRefetching instead of isFetching to avoid spinner during initial load
+  // isFetching = true during ANY fetch (initial + refetch)
+  // isRefetching = true only during background refetch (after data exists)
+  const { data, isRefetching } = useObjects(selectedAccountId, selectedBucket, prefix);
   const deleteObjects = useDeleteObjects();
   const createFolder = useCreateFolder();
   const { queueDownloads, queueFolderDownload } = useDownloadManager();
@@ -220,6 +224,7 @@ export function Toolbar() {
 
       <div className="flex items-center gap-1.5">
         <SearchInput />
+        <SearchFilters />
 
         <Separator orientation="vertical" className="h-5 my-auto" />
 
@@ -300,11 +305,11 @@ export function Toolbar() {
           variant="ghost"
           size="icon-sm"
           onClick={handleRefresh}
-          disabled={!selectedBucket}
-          title="Refresh (Cmd+R)"
+          disabled={!selectedBucket || isRefetching}
+          title="Refresh"
           className="text-muted-foreground hover:text-foreground"
         >
-          <RefreshCw className="h-4 w-4" />
+          <RefreshCw className={cn("h-4 w-4", isRefetching && "animate-spin")} />
         </Button>
 
         <Separator orientation="vertical" className="h-5 mx-1.5 my-auto" />

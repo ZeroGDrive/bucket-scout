@@ -96,6 +96,43 @@ export interface ObjectMetadata {
   metadata?: Record<string, string>;
 }
 
+// Object versioning types
+export interface ObjectVersionInfo {
+  versionId: string;
+  isLatest: boolean;
+  isDeleteMarker: boolean;
+  lastModified?: string;
+  size?: number;
+  etag?: string;
+  storageClass?: string;
+}
+
+export interface ListVersionsResponse {
+  key: string;
+  versions: ObjectVersionInfo[];
+  keyMarker?: string;
+  versionIdMarker?: string;
+  isTruncated: boolean;
+  versioningEnabled: boolean;
+}
+
+export interface RestoreVersionResult {
+  key: string;
+  restoredVersionId: string;
+  newVersionId?: string;
+}
+
+// Object tagging types
+export interface ObjectTag {
+  key: string;
+  value: string;
+}
+
+export interface ObjectTagsResponse {
+  objectKey: string;
+  tags: ObjectTag[];
+}
+
 export type PreviewContent =
   | { type: "Text"; content: string; truncated: boolean }
   | { type: "Image"; base64: string; mimeType: string }
@@ -250,4 +287,104 @@ export interface DownloadCompletedPayload {
 export interface DownloadFailedPayload {
   downloadId: string;
   error: string;
+}
+
+// Bucket configuration types
+export interface BucketVersioningConfig {
+  status: "Enabled" | "Suspended" | "Disabled" | "Unsupported";
+  mfaDelete?: string;
+}
+
+export interface CorsRuleConfig {
+  allowedHeaders: string[];
+  allowedMethods: string[];
+  allowedOrigins: string[];
+  exposeHeaders: string[];
+  maxAgeSeconds?: number;
+}
+
+export interface BucketCorsConfig {
+  rules: CorsRuleConfig[];
+}
+
+export interface LifecycleTransition {
+  days?: number;
+  storageClass?: string;
+}
+
+export interface LifecycleRuleConfig {
+  id?: string;
+  status: string;
+  prefix?: string;
+  expirationDays?: number;
+  noncurrentVersionExpirationDays?: number;
+  abortIncompleteMultipartUploadDays?: number;
+  transitions: LifecycleTransition[];
+}
+
+export interface BucketLifecycleConfig {
+  rules: LifecycleRuleConfig[];
+}
+
+export interface BucketEncryptionConfig {
+  sseAlgorithm?: string;
+  kmsMasterKeyId?: string;
+  bucketKeyEnabled?: boolean;
+}
+
+export interface BucketLoggingConfig {
+  loggingEnabled: boolean;
+  targetBucket?: string;
+  targetPrefix?: string;
+}
+
+export interface BucketConfigSummary {
+  versioning: BucketVersioningConfig;
+  cors: BucketCorsConfig;
+  lifecycle: BucketLifecycleConfig;
+  encryption: BucketEncryptionConfig;
+  logging: BucketLoggingConfig;
+}
+
+// Storage Analytics types
+export interface FolderStats {
+  prefix: string;
+  name: string;
+  size: number;
+  objectCount: number;
+}
+
+export interface ContentTypeStats {
+  contentType: string;
+  size: number;
+  objectCount: number;
+}
+
+export interface StorageClassStats {
+  storageClass: string;
+  size: number;
+  objectCount: number;
+}
+
+export interface LargeFile {
+  key: string;
+  size: number;
+  lastModified?: string;
+  storageClass?: string;
+}
+
+export interface BucketAnalytics {
+  totalSize: number;
+  totalObjects: number;
+  folders: FolderStats[];
+  byContentType: ContentTypeStats[];
+  byStorageClass: StorageClassStats[];
+  largestFiles: LargeFile[];
+  calculatedAt: string;
+}
+
+// Analytics progress event
+export interface AnalyticsProgressPayload {
+  objectsProcessed: number;
+  currentPrefix: string;
 }
