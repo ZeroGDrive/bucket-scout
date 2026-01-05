@@ -29,8 +29,11 @@
   },
   "devDependencies": {
     "@bucket-scout/config": "workspace:*",
+    "@types/sharp": "^0.32.0",
     "oxfmt": "^0.21.0",
     "oxlint": "^1.34.0",
+    "png-to-ico": "^3.0.1",
+    "sharp": "^0.34.5",
     "turbo": "^2.6.3",
     "typescript": "catalog:"
   },
