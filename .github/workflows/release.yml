@@ -78,6 +78,6 @@ jobs:
 
             ## Auto-updates
             This app supports automatic updates. You'll be notified when a new version is available.
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
