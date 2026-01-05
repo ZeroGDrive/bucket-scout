@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Gradient definitions -->
+  <defs>
+    <!-- Bucket gradient - deep blue to teal -->
+    <linearGradient id="bucketGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3B82F6" />
+      <stop offset="100%" stop-color="#06B6D4" />
+    </linearGradient>
+
+    <!-- Rim gradient - lighter accent -->
+    <linearGradient id="rimGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#60A5FA" />
+      <stop offset="100%" stop-color="#22D3EE" />
+    </linearGradient>
+
+    <!-- Magnifier gradient - amber/orange warm tone -->
+    <linearGradient id="magnifierGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F59E0B" />
+      <stop offset="100%" stop-color="#EF4444" />
+    </linearGradient>
+
+    <!-- Focus dot gradient -->
+    <radialGradient id="dotGradient" cx="30%" cy="30%">
+      <stop offset="0%" stop-color="#FCD34D" />
+      <stop offset="100%" stop-color="#F59E0B" />
+    </radialGradient>
+  </defs>
+
+  <!-- Bucket body - sleek container shape -->
+  <path
+    d="M12 20 L16 52 C16.5 54.5 19 56 22 56 L42 56 C45 56 47.5 54.5 48 52 L52 20"
+    stroke="url(#bucketGradient)"
+    stroke-width="3"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    fill="none"
+  />
+
+  <!-- Bucket rim -->
+  <ellipse
+    cx="32"
+    cy="20"
+    rx="21"
+    ry="6"
+    stroke="url(#rimGradient)"
+    stroke-width="3"
+    fill="none"
+  />
+
+  <!-- Scout compass/magnifying element -->
+  <circle
+    cx="38"
+    cy="38"
+    r="10"
+    stroke="url(#magnifierGradient)"
+    stroke-width="2.5"
+    fill="none"
+  />
+
+  <!-- Compass needle / search indicator -->
+  <line
+    x1="45"
+    y1="45"
+    x2="52"
+    y2="52"
+    stroke="url(#magnifierGradient)"
+    stroke-width="3"
+    stroke-linecap="round"
+  />
+
+  <!-- Inner dot - focus point -->
+  <circle
+    cx="38"
+    cy="38"
+    r="3"
+    fill="url(#dotGradient)"
+  />
+</svg>
