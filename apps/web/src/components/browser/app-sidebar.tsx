@@ -15,6 +15,7 @@ import {
   FolderSync,
   Heart,
   Github,
+  MessageSquare,
 } from "lucide-react";
 import { Logo } from "@/components/icons/logo";
 import {
@@ -73,7 +74,7 @@ import { BucketAnalyticsDialog } from "@/components/browser/bucket-analytics-dia
 import { OperationsHistoryDialog } from "@/components/history";
 import { DuplicateScannerDialog } from "@/components/duplicates";
 import { FolderSyncDialog } from "@/components/sync";
-import { SupportMeDialog } from "@/components/support";
+import { SupportMeDialog, FeedbackDialog } from "@/components/support";
 import { toast } from "sonner";
 import { parseS3Error } from "@/lib/utils";
 import { openUrl } from "@/lib/open-url";
@@ -106,6 +107,7 @@ export function AppSidebar() {
   const [duplicateScannerOpen, setDuplicateScannerOpen] = useState(false);
   const [folderSyncOpen, setFolderSyncOpen] = useState(false);
   const [supportMeOpen, setSupportMeOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [forceDelete, setForceDelete] = useState(false);
 
   const selectedAccountId = useBrowserStore((s) => s.selectedAccountId);
@@ -459,6 +461,16 @@ export function AppSidebar() {
 
           <SidebarSeparator className="my-2" />
 
+          {/* Feedback */}
+          <button
+            onClick={() => setFeedbackOpen(true)}
+            className="w-full flex items-center justify-center gap-2 px-2 py-2 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-sidebar-accent transition-colors"
+            title="Send Feedback"
+          >
+            <MessageSquare className="h-3.5 w-3.5 shrink-0" />
+            <span className="group-data-[collapsible=icon]:hidden">Feedback</span>
+          </button>
+
           {/* Author & Support */}
           <div className="flex items-center gap-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-2">
             <button
@@ -528,6 +540,8 @@ export function AppSidebar() {
       <FolderSyncDialog open={folderSyncOpen} onOpenChange={setFolderSyncOpen} />
 
       <SupportMeDialog open={supportMeOpen} onOpenChange={setSupportMeOpen} />
+
+      <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
 
       <AlertDialog
         open={deleteBucketDialog.open}
