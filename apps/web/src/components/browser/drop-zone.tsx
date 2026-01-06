@@ -174,7 +174,7 @@ export function DropZone({ children, className }: DropZoneProps) {
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
-      className={cn("relative", className)}
+      className={cn("relative h-full", className)}
     >
       {children}
 

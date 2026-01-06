@@ -15,9 +15,10 @@ export function BrowserLayout() {
   const previewPanelOpen = useBrowserStore((s) => s.previewPanelOpen);
   const setPreviewPanelOpen = useBrowserStore((s) => s.setPreviewPanelOpen);
 
-  // Show preview panel when files are selected and panel is open
-  const hasSelection = selectedFileKeys.length > 0;
-  const isPreviewOpen = hasSelection && previewPanelOpen;
+  // Show preview panel when files (not folders) are selected and panel is open
+  // Folders end with "/" in S3 key convention
+  const hasFileSelection = selectedFileKeys.some((key) => !key.endsWith("/"));
+  const isPreviewOpen = hasFileSelection && previewPanelOpen;
 
   const handleOpenChange = (open: boolean) => {
     if (!open) {
@@ -26,7 +27,7 @@ export function BrowserLayout() {
   };
 
   return (
-    <SidebarProvider defaultOpen={true}>
+    <SidebarProvider defaultOpen={true} className="h-full">
       <AppSidebar />
       <SidebarInset className="flex flex-col min-h-0 overflow-hidden">
         <Toolbar />

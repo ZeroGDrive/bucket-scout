@@ -443,7 +443,18 @@ export function DuplicateScannerDialog({ open, onOpenChange }: DuplicateScannerD
           </div>
           <div className="flex items-center gap-2">
             <label className="text-sm text-muted-foreground w-32">Min file size:</label>
-            <Select value={minFileSize} onValueChange={(val) => val && setMinFileSize(val)}>
+            <Select
+              value={minFileSize}
+              onValueChange={(val) => val && setMinFileSize(val)}
+              items={[
+                { value: "0", label: "All files" },
+                { value: "1024", label: "≥ 1 KB" },
+                { value: "10240", label: "≥ 10 KB" },
+                { value: "102400", label: "≥ 100 KB" },
+                { value: "1048576", label: "≥ 1 MB" },
+                { value: "10485760", label: "≥ 10 MB" },
+              ]}
+            >
               <SelectTrigger className="flex-1">
                 <SelectValue />
               </SelectTrigger>

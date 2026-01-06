@@ -160,7 +160,11 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
           {providerType === "aws_s3" && (
             <div className="space-y-2">
               <Label htmlFor="region">Region</Label>
-              <Select value={region} onValueChange={(val) => val && setRegion(val)}>
+              <Select
+                value={region}
+                onValueChange={(val) => val && setRegion(val)}
+                items={AWS_REGIONS}
+              >
                 <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>

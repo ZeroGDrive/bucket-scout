@@ -104,6 +104,10 @@ export function CreateBucketDialog({ open, onOpenChange, accountId }: CreateBuck
               <Select
                 value={location || "auto"}
                 onValueChange={(val) => setLocation(val === "auto" ? "" : val || "")}
+                items={[
+                  { value: "auto", label: "Automatic (recommended)" },
+                  ...R2_LOCATIONS,
+                ]}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue />
@@ -129,6 +133,7 @@ export function CreateBucketDialog({ open, onOpenChange, accountId }: CreateBuck
               <Select
                 value={location || account?.region || "us-east-1"}
                 onValueChange={(val) => val && setLocation(val)}
+                items={AWS_REGIONS}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue />
