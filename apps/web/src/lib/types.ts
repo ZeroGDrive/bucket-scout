@@ -537,3 +537,80 @@ export interface ScanErrorPayload {
   scanId: number;
   error: string;
 }
+
+// ==================== Folder Sync types ====================
+
+export type SyncDirection = "upload_only" | "download_only";
+export type SyncPairStatus = "idle" | "syncing" | "error";
+export type SyncSessionStatus = "running" | "completed" | "failed" | "cancelled";
+export type ChangeType = "new" | "modified" | "deleted" | "unchanged";
+
+export interface SyncPair {
+  id: number;
+  name: string;
+  localPath: string;
+  accountId: string;
+  bucket: string;
+  remotePrefix: string;
+  syncDirection: SyncDirection;
+  deletePropagation: boolean;
+  status: SyncPairStatus;
+  lastSyncAt?: number;
+  lastError?: string;
+  createdAt: number;
+}
+
+export interface DetectedChange {
+  relativePath: string;
+  changeType: ChangeType;
+  size?: number;
+  mtime?: number;
+  hash?: string;
+}
+
+export interface SyncPreview {
+  toUpload: DetectedChange[];
+  toDownload: DetectedChange[];
+  toDeleteLocal: DetectedChange[];
+  toDeleteRemote: DetectedChange[];
+}
+
+export interface SyncSession {
+  id: number;
+  syncPairId: number;
+  startedAt: number;
+  completedAt?: number;
+  status: SyncSessionStatus;
+  filesUploaded: number;
+  filesDownloaded: number;
+  filesDeletedLocal: number;
+  filesDeletedRemote: number;
+  bytesTransferred: number;
+  errorMessage?: string;
+}
+
+// Sync progress events
+export interface SyncProgressPayload {
+  pairId: number;
+  sessionId: number;
+  phase: string;
+  currentFile?: string;
+  filesProcessed: number;
+  totalFiles: number;
+  bytesTransferred: number;
+}
+
+export interface SyncCompletePayload {
+  pairId: number;
+  sessionId: number;
+  filesUploaded: number;
+  filesDownloaded: number;
+  filesDeletedLocal: number;
+  filesDeletedRemote: number;
+}
+
+export interface SyncErrorPayload {
+  pairId: number;
+  sessionId?: number;
+  error: string;
+}

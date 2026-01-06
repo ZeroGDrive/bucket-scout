@@ -78,3 +78,6 @@ hex = "0.4"
 
 # File system watching (for sync)
 notify = "6.1"
+
+# Native dialogs (folder picker for sync)
+tauri-plugin-dialog = "2"

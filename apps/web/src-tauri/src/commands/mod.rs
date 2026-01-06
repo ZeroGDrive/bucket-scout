@@ -5,3 +5,4 @@ pub mod duplicates;
 pub mod history;
 pub mod objects;
 pub mod preview;
+pub mod sync;

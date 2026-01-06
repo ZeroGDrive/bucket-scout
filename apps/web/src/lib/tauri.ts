@@ -38,6 +38,11 @@ import type {
   ScanSummary,
   HashType,
   DeleteDuplicatesResult,
+  // Sync types
+  SyncPair,
+  SyncPreview,
+  SyncSession,
+  SyncDirection,
 } from "./types";
 
 // Credentials commands
@@ -533,4 +538,49 @@ export const duplicates = {
       scanId: params.scanId,
       keysToDelete: params.keysToDelete,
     }),
+};
+
+// Folder sync commands
+export const sync = {
+  // Sync pair management
+  createPair: (
+    name: string,
+    localPath: string,
+    accountId: string,
+    bucket: string,
+    remotePrefix: string,
+    syncDirection: SyncDirection,
+    deletePropagation: boolean,
+  ) =>
+    invoke<SyncPair>("create_sync_pair", {
+      name,
+      localPath,
+      accountId,
+      bucket,
+      remotePrefix,
+      syncDirection,
+      deletePropagation,
+    }),
+
+  getPair: (pairId: number) => invoke<SyncPair | null>("get_sync_pair", { pairId }),
+
+  listPairs: (accountId: string, bucket: string) =>
+    invoke<SyncPair[]>("list_sync_pairs", { accountId, bucket }),
+
+  deletePair: (pairId: number) => invoke<void>("delete_sync_pair", { pairId }),
+
+  // Sync operations
+  preview: (pairId: number) => invoke<SyncPreview>("preview_sync", { pairId }),
+
+  start: (params: { pairId: number; isResync?: boolean }) =>
+    invoke<number>("start_sync", {
+      pairId: params.pairId,
+      isResync: params.isResync ?? false,
+    }),
+
+  cancel: (pairId: number) => invoke<void>("cancel_sync", { pairId }),
+
+  // Session history
+  getSessions: (pairId: number, limit?: number) =>
+    invoke<SyncSession[]>("get_sync_sessions", { pairId, limit }),
 };
