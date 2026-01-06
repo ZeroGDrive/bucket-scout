@@ -67,7 +67,7 @@ jobs:
         with:
           projectPath: apps/web
           tagName: v__VERSION__
-          releaseName: "S3 Browser v__VERSION__"
+          releaseName: "BucketScout v__VERSION__"
           releaseBody: |
             See the assets below to download and install.
 

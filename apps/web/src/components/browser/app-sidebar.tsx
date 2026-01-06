@@ -226,11 +226,12 @@ export function AppSidebar() {
                         isActive={selectedAccountId === account.id}
                         onClick={() => setAccount(account.id)}
                         tooltip={account.name}
+                        className="pr-7"
                       >
                         <Database className="h-4 w-4 shrink-0" />
                         <span className="truncate flex-1">{account.name}</span>
                         <span
-                          className={`text-[9px] font-medium px-1.5 py-0.5 rounded group-data-[collapsible=icon]:hidden ${
+                          className={`text-[9px] font-medium px-1.5 py-0.5 rounded shrink-0 group-data-[collapsible=icon]:hidden ${
                             account.providerType === "cloudflare_r2"
                               ? "bg-orange-500/15 text-orange-600 dark:text-orange-400"
                               : "bg-amber-500/15 text-amber-600 dark:text-amber-400"
@@ -240,7 +241,7 @@ export function AppSidebar() {
                         </span>
                       </SidebarMenuButton>
                       <DropdownMenu>
-                        <DropdownMenuTrigger className="absolute right-1 top-1.5 flex aspect-square w-5 items-center justify-center rounded-sm p-0 text-sidebar-foreground ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 outline-hidden transition-transform opacity-0 group-hover/menu-item:opacity-100 data-[open]:opacity-100 group-data-[collapsible=icon]:hidden">
+                        <DropdownMenuTrigger className="absolute right-1 top-1/2 -translate-y-1/2 flex aspect-square w-5 items-center justify-center rounded-sm p-0 text-sidebar-foreground ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 outline-hidden transition-transform opacity-0 group-hover/menu-item:opacity-100 data-[open]:opacity-100 group-data-[collapsible=icon]:hidden">
                           <MoreVertical className="h-4 w-4" />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" side="right">
