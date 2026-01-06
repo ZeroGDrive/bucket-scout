@@ -3,8 +3,6 @@ import {
   RefreshCw,
   LayoutGrid,
   LayoutList,
-  ChevronRight,
-  Home,
   MoreHorizontal,
   Trash2,
   FolderPlus,
@@ -28,6 +26,7 @@ import { DeleteConfirmationDialog } from "./delete-confirmation-dialog";
 import { CreateFolderDialog } from "./create-folder-dialog";
 import { SearchInput } from "./search-input";
 import { SearchFilters } from "./search-filters";
+import { ResponsiveBreadcrumb } from "./responsive-breadcrumb";
 import { useDownloadManager } from "@/hooks/use-download-manager";
 import { toast } from "sonner";
 import type { FileItem } from "@/lib/types";
@@ -176,50 +175,11 @@ export function Toolbar() {
         <Separator orientation="vertical" className="h-5 mr-1 my-auto" />
 
         {/* Breadcrumb navigation */}
-        <nav className="flex items-center gap-0.5 text-sm min-w-0 overflow-hidden">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 text-muted-foreground hover:text-foreground"
-            onClick={() => handleBreadcrumbClick(-1)}
-            disabled={!selectedBucket}
-          >
-            <Home className="h-3.5 w-3.5" />
-          </Button>
-
-          {selectedBucket && (
-            <>
-              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 px-2 font-medium text-foreground"
-                onClick={() => handleBreadcrumbClick(-1)}
-              >
-                {selectedBucket}
-              </Button>
-            </>
-          )}
-
-          {currentPath.map((folder, index) => (
-            <div key={index} className="flex items-center gap-0.5 min-w-0">
-              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
-              <Button
-                variant="ghost"
-                size="sm"
-                className={cn(
-                  "h-7 px-2 min-w-0",
-                  index === currentPath.length - 1
-                    ? "font-medium text-foreground"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-                onClick={() => handleBreadcrumbClick(index)}
-              >
-                <span className="truncate">{folder}</span>
-              </Button>
-            </div>
-          ))}
-        </nav>
+        <ResponsiveBreadcrumb
+          bucket={selectedBucket}
+          path={currentPath}
+          onNavigate={handleBreadcrumbClick}
+        />
       </div>
 
       <div className="flex items-center gap-1.5">

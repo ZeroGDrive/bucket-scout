@@ -25,6 +25,24 @@ import type {
   CorsRuleConfig,
   LifecycleRuleConfig,
   BucketAnalytics,
+  // History types
+  Operation,
+  OperationFilter,
+  OperationsResponse,
+  OperationStats,
+  OperationStatus,
+  LogOperationInput,
+  // Duplicate types
+  DuplicateScan,
+  DuplicateGroup,
+  ScanSummary,
+  HashType,
+  DeleteDuplicatesResult,
+  // Sync types
+  SyncPair,
+  SyncPreview,
+  SyncSession,
+  SyncDirection,
 } from "./types";
 
 // Credentials commands
@@ -436,4 +454,133 @@ export const preview = {
       key: params.key,
       size: params.size,
     }),
+};
+
+// History commands
+export const history = {
+  getOperations: (filter: OperationFilter) =>
+    invoke<OperationsResponse>("get_operations", { filter }),
+
+  getOperation: (id: number) => invoke<Operation | null>("get_operation", { id }),
+
+  getStats: (params: { accountId?: string; bucket?: string; days?: number }) =>
+    invoke<OperationStats>("get_operation_stats", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+      days: params.days,
+    }),
+
+  cleanup: (days?: number) => invoke<number>("cleanup_history", { days }),
+
+  export: (params: { filter: OperationFilter; format: "csv" | "json" }) =>
+    invoke<string>("export_operations", {
+      filter: params.filter,
+      format: params.format,
+    }),
+
+  log: (input: LogOperationInput) => invoke<number>("log_operation", { input }),
+
+  updateStatus: (params: {
+    id: number;
+    status: OperationStatus;
+    durationMs?: number;
+    errorMessage?: string;
+  }) =>
+    invoke<void>("update_operation", {
+      id: params.id,
+      status: params.status,
+      durationMs: params.durationMs,
+      errorMessage: params.errorMessage,
+    }),
+};
+
+// Duplicate detection commands
+export const duplicates = {
+  startScan: (params: {
+    accountId: string;
+    bucket: string;
+    prefix?: string;
+    hashType: HashType;
+    minFileSize?: number;
+  }) =>
+    invoke<number>("start_duplicate_scan", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+      prefix: params.prefix,
+      hashType: params.hashType,
+      minFileSize: params.minFileSize,
+    }),
+
+  cancelScan: (scanId: number) => invoke<void>("cancel_duplicate_scan", { scanId }),
+
+  getScan: (scanId: number) => invoke<DuplicateScan | null>("get_scan", { scanId }),
+
+  getGroups: (scanId: number) => invoke<DuplicateGroup[]>("get_duplicate_groups", { scanId }),
+
+  listScans: (params: { accountId: string; bucket?: string; limit?: number }) =>
+    invoke<ScanSummary[]>("list_scans", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+      limit: params.limit,
+    }),
+
+  deleteScan: (scanId: number) => invoke<void>("delete_scan", { scanId }),
+
+  deleteDuplicates: (params: {
+    accountId: string;
+    bucket: string;
+    scanId: number;
+    keysToDelete: string[];
+  }) =>
+    invoke<DeleteDuplicatesResult>("delete_duplicates", {
+      accountId: params.accountId,
+      bucket: params.bucket,
+      scanId: params.scanId,
+      keysToDelete: params.keysToDelete,
+    }),
+};
+
+// Folder sync commands
+export const sync = {
+  // Sync pair management
+  createPair: (
+    name: string,
+    localPath: string,
+    accountId: string,
+    bucket: string,
+    remotePrefix: string,
+    syncDirection: SyncDirection,
+    deletePropagation: boolean,
+  ) =>
+    invoke<SyncPair>("create_sync_pair", {
+      name,
+      localPath,
+      accountId,
+      bucket,
+      remotePrefix,
+      syncDirection,
+      deletePropagation,
+    }),
+
+  getPair: (pairId: number) => invoke<SyncPair | null>("get_sync_pair", { pairId }),
+
+  listPairs: (accountId: string, bucket: string) =>
+    invoke<SyncPair[]>("list_sync_pairs", { accountId, bucket }),
+
+  deletePair: (pairId: number) => invoke<void>("delete_sync_pair", { pairId }),
+
+  // Sync operations
+  preview: (pairId: number) => invoke<SyncPreview>("preview_sync", { pairId }),
+
+  start: (params: { pairId: number; isResync?: boolean }) =>
+    invoke<number>("start_sync", {
+      pairId: params.pairId,
+      isResync: params.isResync ?? false,
+    }),
+
+  cancel: (pairId: number) => invoke<void>("cancel_sync", { pairId }),
+
+  // Session history
+  getSessions: (pairId: number, limit?: number) =>
+    invoke<SyncSession[]>("get_sync_sessions", { pairId, limit }),
 };

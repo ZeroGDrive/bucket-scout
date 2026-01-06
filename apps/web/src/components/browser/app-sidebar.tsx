@@ -10,6 +10,9 @@ import {
   Loader2,
   Settings2,
   BarChart3,
+  History,
+  Files,
+  FolderSync,
 } from "lucide-react";
 import { Logo } from "@/components/icons/logo";
 import {
@@ -65,6 +68,9 @@ import { AddAccountDialog } from "@/components/accounts/add-account-dialog";
 import { CreateBucketDialog } from "@/components/browser/create-bucket-dialog";
 import { BucketConfigDialog } from "@/components/browser/bucket-config-dialog";
 import { BucketAnalyticsDialog } from "@/components/browser/bucket-analytics-dialog";
+import { OperationsHistoryDialog } from "@/components/history";
+import { DuplicateScannerDialog } from "@/components/duplicates";
+import { FolderSyncDialog } from "@/components/sync";
 import { toast } from "sonner";
 import { parseS3Error } from "@/lib/utils";
 
@@ -92,6 +98,9 @@ export function AppSidebar() {
     open: false,
     bucketName: "",
   });
+  const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
+  const [duplicateScannerOpen, setDuplicateScannerOpen] = useState(false);
+  const [folderSyncOpen, setFolderSyncOpen] = useState(false);
   const [forceDelete, setForceDelete] = useState(false);
 
   const selectedAccountId = useBrowserStore((s) => s.selectedAccountId);
@@ -397,7 +406,42 @@ export function AppSidebar() {
         </SidebarContent>
 
         <SidebarFooter className="p-3 border-t border-sidebar-border">
-          <div className="flex items-center gap-2 text-[10px] text-muted-foreground group-data-[collapsible=icon]:hidden">
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => setFolderSyncOpen(true)}
+                tooltip="Folder Sync"
+                disabled={!selectedBucket}
+                className={!selectedBucket ? "opacity-50 pointer-events-none" : ""}
+              >
+                <FolderSync className="h-4 w-4 shrink-0" />
+                <span>Folder Sync</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => setDuplicateScannerOpen(true)}
+                tooltip="Find Duplicates"
+                disabled={!selectedBucket}
+                className={!selectedBucket ? "opacity-50 pointer-events-none" : ""}
+              >
+                <Files className="h-4 w-4 shrink-0" />
+                <span>Find Duplicates</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => setHistoryDialogOpen(true)}
+                tooltip="Operations History"
+                disabled={!selectedBucket}
+                className={!selectedBucket ? "opacity-50 pointer-events-none" : ""}
+              >
+                <History className="h-4 w-4 shrink-0" />
+                <span>History</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+          <div className="flex items-center gap-2 text-[10px] text-muted-foreground group-data-[collapsible=icon]:hidden mt-2">
             <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
             <span className="uppercase tracking-wider">Connected</span>
           </div>
@@ -437,6 +481,21 @@ export function AppSidebar() {
         />
       )}
 
+      <OperationsHistoryDialog
+        open={historyDialogOpen}
+        onOpenChange={setHistoryDialogOpen}
+      />
+
+      <DuplicateScannerDialog
+        open={duplicateScannerOpen}
+        onOpenChange={setDuplicateScannerOpen}
+      />
+
+      <FolderSyncDialog
+        open={folderSyncOpen}
+        onOpenChange={setFolderSyncOpen}
+      />
+
       <AlertDialog
         open={deleteBucketDialog.open}
         onOpenChange={(open) => {
@@ -466,9 +525,9 @@ export function AppSidebar() {
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleteBucket.isPending}>Cancel</AlertDialogCancel>
             <AlertDialogAction
+              variant="destructive"
               onClick={handleDeleteBucket}
               disabled={deleteBucket.isPending}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleteBucket.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               {deleteBucket.isPending ? "Deleting..." : "Delete"}

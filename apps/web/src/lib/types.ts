@@ -388,3 +388,229 @@ export interface AnalyticsProgressPayload {
   objectsProcessed: number;
   currentPrefix: string;
 }
+
+// Operations History types
+export type OperationType =
+  | "upload"
+  | "download"
+  | "delete"
+  | "copy"
+  | "move"
+  | "rename"
+  | "create_folder";
+
+export type OperationStatus =
+  | "pending"
+  | "in_progress"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
+export interface Operation {
+  id: number;
+  timestamp: number;
+  accountId: string;
+  bucket: string;
+  operation: OperationType;
+  sourceKey?: string;
+  destKey?: string;
+  size?: number;
+  durationMs?: number;
+  status: OperationStatus;
+  errorMessage?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface OperationFilter {
+  accountId?: string;
+  bucket?: string;
+  operation?: OperationType;
+  status?: OperationStatus;
+  fromTimestamp?: number;
+  toTimestamp?: number;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface OperationsResponse {
+  operations: Operation[];
+  total: number;
+  hasMore: boolean;
+}
+
+export interface OperationStats {
+  totalOperations: number;
+  totalBytes: number;
+  completed: number;
+  failed: number;
+  byType: { operation: string; count: number }[];
+}
+
+export interface LogOperationInput {
+  accountId: string;
+  bucket: string;
+  operation: OperationType;
+  sourceKey?: string;
+  destKey?: string;
+  size?: number;
+  status: OperationStatus;
+  durationMs?: number;
+  errorMessage?: string;
+}
+
+// Duplicate Detection types
+export type HashType = "etag" | "sha256";
+export type ScanStatus = "running" | "completed" | "failed" | "cancelled";
+
+export interface DuplicateScan {
+  id: number;
+  accountId: string;
+  bucket: string;
+  prefix: string;
+  startedAt: number;
+  completedAt?: number;
+  status: ScanStatus;
+  totalFiles: number;
+  totalSize: number;
+  duplicateGroups: number;
+  duplicateFiles: number;
+  reclaimableBytes: number;
+  errorMessage?: string;
+}
+
+export interface DuplicateGroup {
+  id: number;
+  scanId: number;
+  contentHash: string;
+  hashType: HashType;
+  fileSize: number;
+  fileCount: number;
+  files: DuplicateFile[];
+}
+
+export interface DuplicateFile {
+  id: number;
+  groupId: number;
+  key: string;
+  etag?: string;
+  lastModified?: number;
+  storageClass?: string;
+}
+
+export interface ScanSummary {
+  id: number;
+  accountId: string;
+  bucket: string;
+  prefix: string;
+  startedAt: number;
+  status: ScanStatus;
+  totalFiles: number;
+  duplicateGroups: number;
+  reclaimableBytes: number;
+}
+
+export interface DeleteDuplicatesResult {
+  deletedCount: number;
+  freedBytes: number;
+  errors: { key: string; error: string }[];
+}
+
+// Scan progress events
+export interface ScanProgressPayload {
+  scanId: number;
+  phase: string;
+  filesScanned: number;
+  totalFiles: number;
+  currentFile?: string;
+  bytesProcessed: number;
+}
+
+export interface ScanCompletePayload {
+  scanId: number;
+  duplicateGroups: number;
+  duplicateFiles: number;
+  reclaimableBytes: number;
+}
+
+export interface ScanErrorPayload {
+  scanId: number;
+  error: string;
+}
+
+// ==================== Folder Sync types ====================
+
+export type SyncDirection = "upload_only" | "download_only";
+export type SyncPairStatus = "idle" | "syncing" | "error";
+export type SyncSessionStatus = "running" | "completed" | "failed" | "cancelled";
+export type ChangeType = "new" | "modified" | "deleted" | "unchanged";
+
+export interface SyncPair {
+  id: number;
+  name: string;
+  localPath: string;
+  accountId: string;
+  bucket: string;
+  remotePrefix: string;
+  syncDirection: SyncDirection;
+  deletePropagation: boolean;
+  status: SyncPairStatus;
+  lastSyncAt?: number;
+  lastError?: string;
+  createdAt: number;
+}
+
+export interface DetectedChange {
+  relativePath: string;
+  changeType: ChangeType;
+  size?: number;
+  mtime?: number;
+  hash?: string;
+}
+
+export interface SyncPreview {
+  toUpload: DetectedChange[];
+  toDownload: DetectedChange[];
+  toDeleteLocal: DetectedChange[];
+  toDeleteRemote: DetectedChange[];
+}
+
+export interface SyncSession {
+  id: number;
+  syncPairId: number;
+  startedAt: number;
+  completedAt?: number;
+  status: SyncSessionStatus;
+  filesUploaded: number;
+  filesDownloaded: number;
+  filesDeletedLocal: number;
+  filesDeletedRemote: number;
+  bytesTransferred: number;
+  errorMessage?: string;
+}
+
+// Sync progress events
+export interface SyncProgressPayload {
+  pairId: number;
+  sessionId: number;
+  phase: string;
+  currentFile?: string;
+  filesProcessed: number;
+  totalFiles: number;
+  bytesTransferred: number;
+}
+
+export interface SyncCompletePayload {
+  pairId: number;
+  sessionId: number;
+  filesUploaded: number;
+  filesDownloaded: number;
+  filesDeletedLocal: number;
+  filesDeletedRemote: number;
+}
+
+export interface SyncErrorPayload {
+  pairId: number;
+  sessionId?: number;
+  error: string;
+}

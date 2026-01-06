@@ -1,21 +1,32 @@
 mod commands;
 mod credentials;
+mod db;
 mod error;
 pub mod provider;
 mod s3;
 
+use commands::duplicates::ScanState;
+use commands::sync::SyncState;
 use credentials::CredentialsManager;
+use db::DbManager;
 use s3::client::S3ClientManager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Initialize database
+    let db_manager = DbManager::new().expect("Failed to initialize database");
+
     tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .manage(CredentialsManager::new())
         .manage(S3ClientManager::new())
+        .manage(db_manager)
+        .manage(ScanState::default())
+        .manage(SyncState::default())
         .invoke_handler(tauri::generate_handler![
             // Credentials commands
             commands::credentials::add_account,
@@ -63,6 +74,31 @@ pub fn run() {
             // Preview commands
             commands::preview::get_preview,
             commands::preview::get_thumbnail,
+            // History commands
+            commands::history::get_operations,
+            commands::history::get_operation,
+            commands::history::get_operation_stats,
+            commands::history::cleanup_history,
+            commands::history::export_operations,
+            commands::history::log_operation,
+            commands::history::update_operation,
+            // Duplicate detection commands
+            commands::duplicates::start_duplicate_scan,
+            commands::duplicates::cancel_duplicate_scan,
+            commands::duplicates::get_scan,
+            commands::duplicates::get_duplicate_groups,
+            commands::duplicates::list_scans,
+            commands::duplicates::delete_scan,
+            commands::duplicates::delete_duplicates,
+            // Sync commands
+            commands::sync::create_sync_pair,
+            commands::sync::get_sync_pair,
+            commands::sync::list_sync_pairs,
+            commands::sync::delete_sync_pair,
+            commands::sync::preview_sync,
+            commands::sync::start_sync,
+            commands::sync::cancel_sync,
+            commands::sync::get_sync_sessions,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

@@ -49,4 +49,16 @@ where
     }
 }
 
+impl From<rusqlite::Error> for AppError {
+    fn from(err: rusqlite::Error) -> Self {
+        AppError::Storage(err.to_string())
+    }
+}
+
+impl From<std::io::Error> for AppError {
+    fn from(err: std::io::Error) -> Self {
+        AppError::Storage(err.to_string())
+    }
+}
+
 pub type Result<T> = std::result::Result<T, AppError>;

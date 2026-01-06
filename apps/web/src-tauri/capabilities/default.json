@@ -7,10 +7,17 @@
     "core:default",
     "store:default",
     "fs:default",
+    "fs:allow-read",
+    "fs:allow-write",
     "fs:allow-write-file",
     "fs:allow-remove",
     "fs:allow-stat",
+    "fs:allow-mkdir",
+    "fs:allow-exists",
     "fs:scope-temp-recursive",
-    "fs:allow-temp-write-recursive"
+    "fs:allow-temp-write-recursive",
+    "fs:read-all",
+    "fs:write-all",
+    "dialog:default"
   ]
 }

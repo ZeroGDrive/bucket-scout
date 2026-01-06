@@ -1,4 +1,6 @@
 use crate::credentials::CredentialsManager;
+use crate::db::operations::OperationType;
+use crate::db::DbManager;
 use crate::error::AppError;
 use crate::s3::client::S3ClientManager;
 use aws_sdk_s3::presigning::PresigningConfig;
@@ -7,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, State};
 use tokio::io::AsyncReadExt;
 
@@ -242,6 +244,7 @@ pub async fn upload_object(
     app: AppHandle,
     credentials: State<'_, CredentialsManager>,
     s3_clients: State<'_, S3ClientManager>,
+    db: State<'_, DbManager>,
     account_id: String,
     bucket: String,
     file_path: PathBuf,
@@ -249,6 +252,8 @@ pub async fn upload_object(
     content_type: Option<String>,
     upload_id: String,
 ) -> Result<(), AppError> {
+    let start_time = Instant::now();
+
     // Read file metadata
     let metadata = tokio::fs::metadata(&file_path)
         .await
@@ -298,8 +303,22 @@ pub async fn upload_object(
             .await
     };
 
+    let duration_ms = start_time.elapsed().as_millis() as i64;
+
     match result {
         Ok(etag) => {
+            // Log successful upload to history
+            let _ = db.log_completed_operation(
+                &account_id,
+                &bucket,
+                OperationType::Upload,
+                Some(&key),
+                None,
+                Some(total_bytes as i64),
+                duration_ms,
+                None,
+            );
+
             let _ = app.emit(
                 "upload-completed",
                 UploadCompleted {
@@ -311,6 +330,18 @@ pub async fn upload_object(
             Ok(())
         }
         Err(e) => {
+            // Log failed upload to history
+            let _ = db.log_completed_operation(
+                &account_id,
+                &bucket,
+                OperationType::Upload,
+                Some(&key),
+                None,
+                Some(total_bytes as i64),
+                duration_ms,
+                Some(&e.to_string()),
+            );
+
             let _ = app.emit(
                 "upload-failed",
                 UploadFailed {
@@ -377,10 +408,12 @@ pub struct DeleteError {
 pub async fn delete_objects(
     credentials: State<'_, CredentialsManager>,
     s3_clients: State<'_, S3ClientManager>,
+    db: State<'_, DbManager>,
     account_id: String,
     bucket: String,
     keys: Vec<String>,
 ) -> Result<DeleteResult, AppError> {
+    let start_time = Instant::now();
     let account = credentials.get_account(&account_id)?;
     let secret = credentials.get_secret_key(&account_id)?;
 
@@ -475,6 +508,23 @@ pub async fn delete_objects(
                 error: err.message().unwrap_or_default().to_string(),
             });
         }
+    }
+
+    let duration_ms = start_time.elapsed().as_millis() as i64;
+
+    // Log each deletion to history
+    for key in &all_keys_to_delete {
+        let error = all_errors.iter().find(|e| &e.key == key);
+        let _ = db.log_completed_operation(
+            &account_id,
+            &bucket,
+            OperationType::Delete,
+            Some(key),
+            None,
+            None,
+            duration_ms / all_keys_to_delete.len() as i64, // Approximate per-key duration
+            error.map(|e| e.error.as_str()),
+        );
     }
 
     Ok(DeleteResult {
@@ -604,11 +654,14 @@ async fn upload_multipart(
 pub async fn create_folder(
     credentials: State<'_, CredentialsManager>,
     s3_clients: State<'_, S3ClientManager>,
+    db: State<'_, DbManager>,
     account_id: String,
     bucket: String,
     prefix: String,
     folder_name: String,
 ) -> Result<String, AppError> {
+    let start_time = Instant::now();
+
     // Validate folder name
     if folder_name.is_empty() {
         return Err(AppError::InvalidInput("Folder name cannot be empty".into()));
@@ -637,15 +690,44 @@ pub async fn create_folder(
     let key = format!("{}{}/", prefix, folder_name);
 
     // Create a zero-byte object to represent the folder
-    client
+    let result = client
         .put_object()
         .bucket(&bucket)
         .key(&key)
         .body(aws_sdk_s3::primitives::ByteStream::from(Vec::new()))
         .send()
-        .await?;
+        .await;
 
-    Ok(key)
+    let duration_ms = start_time.elapsed().as_millis() as i64;
+
+    match result {
+        Ok(_) => {
+            let _ = db.log_completed_operation(
+                &account_id,
+                &bucket,
+                OperationType::CreateFolder,
+                Some(&key),
+                None,
+                Some(0),
+                duration_ms,
+                None,
+            );
+            Ok(key)
+        }
+        Err(e) => {
+            let _ = db.log_completed_operation(
+                &account_id,
+                &bucket,
+                OperationType::CreateFolder,
+                Some(&key),
+                None,
+                Some(0),
+                duration_ms,
+                Some(&e.to_string()),
+            );
+            Err(AppError::S3(format!("{:?}", e)))
+        }
+    }
 }
 
 // Download event types for progress tracking
@@ -688,12 +770,14 @@ pub async fn download_object(
     app: AppHandle,
     credentials: State<'_, CredentialsManager>,
     s3_clients: State<'_, S3ClientManager>,
+    db: State<'_, DbManager>,
     account_id: String,
     bucket: String,
     key: String,
     destination: String,
     download_id: String,
 ) -> Result<String, AppError> {
+    let start_time = Instant::now();
     let file_name = key.rsplit('/').next().unwrap_or(&key).to_string();
 
     let account = credentials.get_account(&account_id)?;
@@ -714,6 +798,17 @@ pub async fn download_object(
     let response = match client.get_object().bucket(&bucket).key(&key).send().await {
         Ok(resp) => resp,
         Err(e) => {
+            let duration_ms = start_time.elapsed().as_millis() as i64;
+            let _ = db.log_completed_operation(
+                &account_id,
+                &bucket,
+                OperationType::Download,
+                Some(&key),
+                None,
+                None,
+                duration_ms,
+                Some(&e.to_string()),
+            );
             let _ = app.emit(
                 "download-failed",
                 DownloadFailed {
@@ -835,6 +930,19 @@ pub async fn download_object(
     }
 
     let final_path = dest_path.to_string_lossy().to_string();
+    let duration_ms = start_time.elapsed().as_millis() as i64;
+
+    // Log successful download to history
+    let _ = db.log_completed_operation(
+        &account_id,
+        &bucket,
+        OperationType::Download,
+        Some(&key),
+        None,
+        Some(total_bytes as i64),
+        duration_ms,
+        None,
+    );
 
     // Emit completed event
     let _ = app.emit(
