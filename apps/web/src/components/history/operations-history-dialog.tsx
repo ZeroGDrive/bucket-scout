@@ -301,6 +301,16 @@ export function OperationsHistoryDialog({ open, onOpenChange }: OperationsHistor
           <Select
             value={operationTypeFilter}
             onValueChange={(val) => val && setOperationTypeFilter(val)}
+            items={[
+              { value: "all", label: "All Types" },
+              { value: "upload", label: "Upload" },
+              { value: "download", label: "Download" },
+              { value: "delete", label: "Delete" },
+              { value: "copy", label: "Copy" },
+              { value: "move", label: "Move" },
+              { value: "rename", label: "Rename" },
+              { value: "create_folder", label: "Create Folder" },
+            ]}
           >
             <SelectTrigger className="w-32">
               <SelectValue />
@@ -317,7 +327,18 @@ export function OperationsHistoryDialog({ open, onOpenChange }: OperationsHistor
             </SelectContent>
           </Select>
 
-          <Select value={statusFilter} onValueChange={(val) => val && setStatusFilter(val)}>
+          <Select
+            value={statusFilter}
+            onValueChange={(val) => val && setStatusFilter(val)}
+            items={[
+              { value: "all", label: "All Status" },
+              { value: "completed", label: "Completed" },
+              { value: "failed", label: "Failed" },
+              { value: "pending", label: "Pending" },
+              { value: "in_progress", label: "In Progress" },
+              { value: "cancelled", label: "Cancelled" },
+            ]}
+          >
             <SelectTrigger className="w-32">
               <SelectValue />
             </SelectTrigger>
@@ -331,7 +352,16 @@ export function OperationsHistoryDialog({ open, onOpenChange }: OperationsHistor
             </SelectContent>
           </Select>
 
-          <Select value={timeRange} onValueChange={(val) => val && setTimeRange(val)}>
+          <Select
+            value={timeRange}
+            onValueChange={(val) => val && setTimeRange(val)}
+            items={[
+              { value: "1", label: "Last 24 hours" },
+              { value: "7", label: "Last 7 days" },
+              { value: "30", label: "Last 30 days" },
+              { value: "all", label: "All time" },
+            ]}
+          >
             <SelectTrigger className="w-32">
               <SelectValue />
             </SelectTrigger>
@@ -360,7 +390,7 @@ export function OperationsHistoryDialog({ open, onOpenChange }: OperationsHistor
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : operationsData?.operations.length === 0 ? (
-          <div className="flex min-h-0 flex-1 flex-col items-center justify-center text-center">
+          <div className="flex min-h-[300px] flex-1 flex-col items-center justify-center text-center">
             <BarChart3 className="h-12 w-12 text-muted-foreground/30" />
             <p className="mt-4 text-sm text-muted-foreground">No operations found</p>
             <p className="text-xs text-muted-foreground">
