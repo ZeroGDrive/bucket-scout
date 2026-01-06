@@ -19,6 +19,8 @@
     "fs:read-all",
     "fs:write-all",
     "dialog:default",
-    "opener:default"
+    "opener:default",
+    "updater:default",
+    "process:allow-restart"
   ]
 }
