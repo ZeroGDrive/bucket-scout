@@ -698,30 +698,30 @@ export function FileExplorer() {
     const handleCommandAction = (e: Event) => {
       const action = (e as CustomEvent).detail;
       switch (action) {
-        case 'new-folder':
+        case "new-folder":
           setCreateFolderDialogOpen(true);
           break;
-        case 'delete':
+        case "delete":
           if (selectedFileKeys.length > 0) {
             setDeleteDialogOpen(true);
           }
           break;
-        case 'download':
+        case "download":
           handleDownload();
           break;
-        case 'paste':
+        case "paste":
           handlePaste();
           break;
-        case 'upload':
+        case "upload":
           // Trigger the upload button click
-          const uploadButton = document.querySelector<HTMLButtonElement>('[data-upload-trigger]');
+          const uploadButton = document.querySelector<HTMLButtonElement>("[data-upload-trigger]");
           uploadButton?.click();
           break;
       }
     };
 
-    window.addEventListener('command-palette-action', handleCommandAction);
-    return () => window.removeEventListener('command-palette-action', handleCommandAction);
+    window.addEventListener("command-palette-action", handleCommandAction);
+    return () => window.removeEventListener("command-palette-action", handleCommandAction);
   }, [selectedFileKeys.length, handleDownload, handlePaste]);
 
   // Handle keyboard shortcuts
@@ -734,7 +734,7 @@ export function FileExplorer() {
       }
 
       // Don't handle shortcuts if command palette is open
-      if (document.querySelector('[cmdk-root]')) {
+      if (document.querySelector("[cmdk-root]")) {
         return;
       }
 

@@ -81,7 +81,12 @@ function formatRelativeTime(timestamp: number): string {
   return `${Math.floor(days / 7)}w ago`;
 }
 
-const SYNC_DIRECTION_OPTIONS: { value: SyncDirection; label: string; description: string; icon: typeof ArrowUp }[] = [
+const SYNC_DIRECTION_OPTIONS: {
+  value: SyncDirection;
+  label: string;
+  description: string;
+  icon: typeof ArrowUp;
+}[] = [
   { value: "upload_only", label: "Upload", description: "Local → Remote", icon: ArrowUp },
   { value: "download_only", label: "Download", description: "Remote → Local", icon: ArrowDown },
 ];
@@ -380,9 +385,7 @@ export function FolderSyncDialog({ open, onOpenChange }: FolderSyncDialogProps) 
                       {getDirectionIcon(pair.syncDirection)}
                       {getDirectionLabel(pair.syncDirection)}
                     </Badge>
-                    {pair.status === "error" && (
-                      <Badge variant="destructive">Error</Badge>
-                    )}
+                    {pair.status === "error" && <Badge variant="destructive">Error</Badge>}
                   </div>
                   {pair.syncDirection === "upload_only" ? (
                     <>
@@ -396,9 +399,7 @@ export function FolderSyncDialog({ open, onOpenChange }: FolderSyncDialogProps) 
                       <p className="text-xs text-muted-foreground truncate">
                         {pair.bucket}/{pair.remotePrefix || "(root)"}
                       </p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        → {pair.localPath}
-                      </p>
+                      <p className="text-xs text-muted-foreground truncate">→ {pair.localPath}</p>
                     </>
                   )}
                   {pair.lastSyncAt && (
@@ -831,9 +832,7 @@ export function FolderSyncDialog({ open, onOpenChange }: FolderSyncDialogProps) 
               <FolderSync className="h-5 w-5" />
               Folder Sync
             </DialogTitle>
-            <DialogDescription>
-              Sync local folders with S3 buckets.
-            </DialogDescription>
+            <DialogDescription>Sync local folders with S3 buckets.</DialogDescription>
           </DialogHeader>
 
           <DialogPanel>{renderContent()}</DialogPanel>

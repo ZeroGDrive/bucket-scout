@@ -175,9 +175,7 @@ export function SearchFilters({ className }: SearchFiltersProps) {
         }
       >
         <Filter className="h-4 w-4" />
-        {isActive && (
-          <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary" />
-        )}
+        {isActive && <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary" />}
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72 p-0">
         <div className="p-3">

@@ -399,12 +399,7 @@ export type OperationType =
   | "rename"
   | "create_folder";
 
-export type OperationStatus =
-  | "pending"
-  | "in_progress"
-  | "completed"
-  | "failed"
-  | "cancelled";
+export type OperationStatus = "pending" | "in_progress" | "completed" | "failed" | "cancelled";
 
 export interface Operation {
   id: number;

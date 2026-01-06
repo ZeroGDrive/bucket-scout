@@ -14,6 +14,7 @@ import { Loader2, Copy, Check, ExternalLink } from "lucide-react";
 import { useGeneratePresignedUrl } from "@/lib/queries";
 import { toast } from "sonner";
 import { cn, parseS3Error } from "@/lib/utils";
+import { openUrl } from "@/lib/open-url";
 
 const EXPIRY_OPTIONS = [
   { value: "3600", label: "1 hour" },
@@ -164,7 +165,7 @@ export function PresignedUrlDialog({
               )}
             </Button>
           ) : (
-            <Button variant="outline" onClick={() => window.open(generatedUrl, "_blank")}>
+            <Button variant="outline" onClick={() => openUrl(generatedUrl)}>
               <ExternalLink className="mr-2 h-4 w-4" />
               Open
             </Button>

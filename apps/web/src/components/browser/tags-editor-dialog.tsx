@@ -37,11 +37,11 @@ export function TagsEditorDialog({
   const [localTags, setLocalTags] = useState<ObjectTag[]>([]);
   const [hasChanges, setHasChanges] = useState(false);
 
-  const {
-    data,
-    isLoading,
-    error,
-  } = useObjectTags(open ? accountId : null, open ? bucket : null, open ? objectKey : null);
+  const { data, isLoading, error } = useObjectTags(
+    open ? accountId : null,
+    open ? bucket : null,
+    open ? objectKey : null,
+  );
 
   const setTagsMutation = useSetObjectTags();
 

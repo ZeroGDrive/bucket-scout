@@ -92,10 +92,7 @@ interface DuplicateScannerDialogProps {
 
 type ViewMode = "start" | "scanning" | "results" | "history";
 
-export function DuplicateScannerDialog({
-  open,
-  onOpenChange,
-}: DuplicateScannerDialogProps) {
+export function DuplicateScannerDialog({ open, onOpenChange }: DuplicateScannerDialogProps) {
   const queryClient = useQueryClient();
   const { selectedAccountId, selectedBucket, currentPath } = useBrowserStore();
   const currentPrefix = currentPath.length > 0 ? currentPath.join("/") + "/" : "";
@@ -172,46 +169,37 @@ export function DuplicateScannerDialog({
 
     const setupListeners = async () => {
       // Progress
-      const unlistenProgress = await listen<ScanProgressPayload>(
-        "scan-progress",
-        (event) => {
-          if (event.payload.scanId === activeScanId) {
-            setScanProgress(event.payload);
-          }
+      const unlistenProgress = await listen<ScanProgressPayload>("scan-progress", (event) => {
+        if (event.payload.scanId === activeScanId) {
+          setScanProgress(event.payload);
         }
-      );
+      });
       listeners.push(unlistenProgress);
 
       // Complete
-      const unlistenComplete = await listen<ScanCompletePayload>(
-        "scan-complete",
-        (event) => {
-          if (event.payload.scanId === activeScanId) {
-            setActiveScanId(null); // Clear active scan - it's done
-            setViewMode("results");
-            setSelectedScanId(event.payload.scanId);
-            setScanProgress(null);
-            // Invalidate all relevant queries to ensure fresh data
-            queryClient.invalidateQueries({ queryKey: ["duplicate-scans"] });
-            queryClient.invalidateQueries({ queryKey: ["scan-details", event.payload.scanId] });
-            queryClient.invalidateQueries({ queryKey: ["duplicate-groups", event.payload.scanId] });
-          }
+      const unlistenComplete = await listen<ScanCompletePayload>("scan-complete", (event) => {
+        if (event.payload.scanId === activeScanId) {
+          setActiveScanId(null); // Clear active scan - it's done
+          setViewMode("results");
+          setSelectedScanId(event.payload.scanId);
+          setScanProgress(null);
+          // Invalidate all relevant queries to ensure fresh data
+          queryClient.invalidateQueries({ queryKey: ["duplicate-scans"] });
+          queryClient.invalidateQueries({ queryKey: ["scan-details", event.payload.scanId] });
+          queryClient.invalidateQueries({ queryKey: ["duplicate-groups", event.payload.scanId] });
         }
-      );
+      });
       listeners.push(unlistenComplete);
 
       // Error
-      const unlistenError = await listen<ScanErrorPayload>(
-        "scan-error",
-        (event) => {
-          if (event.payload.scanId === activeScanId) {
-            setActiveScanId(null); // Clear active scan - it failed
-            setScanError(event.payload.error);
-            setViewMode("start");
-            setScanProgress(null);
-          }
+      const unlistenError = await listen<ScanErrorPayload>("scan-error", (event) => {
+        if (event.payload.scanId === activeScanId) {
+          setActiveScanId(null); // Clear active scan - it failed
+          setScanError(event.payload.error);
+          setViewMode("start");
+          setScanProgress(null);
         }
-      );
+      });
       listeners.push(unlistenError);
     };
 
@@ -409,7 +397,7 @@ export function DuplicateScannerDialog({
           <button
             className={cn(
               "flex flex-col items-start gap-2 rounded-lg border p-4 text-left transition-colors hover:bg-muted/50",
-              hashType === "etag" && "border-primary bg-primary/5"
+              hashType === "etag" && "border-primary bg-primary/5",
             )}
             onClick={() => setHashType("etag")}
           >
@@ -418,14 +406,14 @@ export function DuplicateScannerDialog({
               <span className="font-medium">Fast Mode</span>
             </div>
             <p className="text-xs text-muted-foreground">
-              Uses file size + ETag for quick detection. May have false positives with
-              multipart uploads.
+              Uses file size + ETag for quick detection. May have false positives with multipart
+              uploads.
             </p>
           </button>
           <button
             className={cn(
               "flex flex-col items-start gap-2 rounded-lg border p-4 text-left transition-colors hover:bg-muted/50",
-              hashType === "sha256" && "border-primary bg-primary/5"
+              hashType === "sha256" && "border-primary bg-primary/5",
             )}
             onClick={() => setHashType("sha256")}
           >
@@ -575,12 +563,7 @@ export function DuplicateScannerDialog({
           <p className="text-xs text-muted-foreground">
             {scanDetails?.totalFiles.toLocaleString()} files scanned
           </p>
-          <Button
-            variant="outline"
-            size="sm"
-            className="mt-4"
-            onClick={() => setViewMode("start")}
-          >
+          <Button variant="outline" size="sm" className="mt-4" onClick={() => setViewMode("start")}>
             <RefreshCcw className="mr-2 h-4 w-4" />
             New Scan
           </Button>
@@ -599,9 +582,7 @@ export function DuplicateScannerDialog({
             <div className="text-xs text-muted-foreground">Duplicate Groups</div>
           </div>
           <div className="rounded-lg border bg-card p-3">
-            <div className="text-2xl font-bold">
-              {scanDetails?.duplicateFiles.toLocaleString()}
-            </div>
+            <div className="text-2xl font-bold">{scanDetails?.duplicateFiles.toLocaleString()}</div>
             <div className="text-xs text-muted-foreground">Duplicate Files</div>
           </div>
           <div className="rounded-lg border bg-card p-3">
@@ -611,9 +592,7 @@ export function DuplicateScannerDialog({
             <div className="text-xs text-muted-foreground">Reclaimable</div>
           </div>
           <div className="rounded-lg border bg-card p-3">
-            <div className="text-2xl font-bold text-primary">
-              {selectedFiles.size}
-            </div>
+            <div className="text-2xl font-bold text-primary">{selectedFiles.size}</div>
             <div className="text-xs text-muted-foreground">Selected</div>
           </div>
         </div>
@@ -632,11 +611,7 @@ export function DuplicateScannerDialog({
         {/* Actions footer */}
         <div className="flex items-center justify-between border-t bg-muted/20 p-3">
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setViewMode("start")}
-            >
+            <Button variant="outline" size="sm" onClick={() => setViewMode("start")}>
               <RefreshCcw className="mr-2 h-4 w-4" />
               New Scan
             </Button>
@@ -691,9 +666,7 @@ export function DuplicateScannerDialog({
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <ScanStatusBadge status={scan.status} />
-                  <span className="text-sm font-mono">
-                    {scan.prefix || scan.bucket}
-                  </span>
+                  <span className="text-sm font-mono">{scan.prefix || scan.bucket}</span>
                 </div>
                 <div className="flex items-center gap-3 text-xs text-muted-foreground">
                   <span>{scan.totalFiles.toLocaleString()} files</span>
@@ -706,11 +679,7 @@ export function DuplicateScannerDialog({
                   {formatRelativeTime(scan.startedAt)}
                 </span>
                 {scan.status === "completed" && scan.duplicateGroups > 0 && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleViewResults(scan.id)}
-                  >
+                  <Button variant="outline" size="sm" onClick={() => handleViewResults(scan.id)}>
                     View Results
                   </Button>
                 )}
@@ -719,9 +688,7 @@ export function DuplicateScannerDialog({
           ))}
 
           {!scanHistory?.length && (
-            <div className="py-8 text-center text-sm text-muted-foreground">
-              No previous scans
-            </div>
+            <div className="py-8 text-center text-sm text-muted-foreground">No previous scans</div>
           )}
         </div>
       </ScrollArea>
@@ -739,11 +706,12 @@ export function DuplicateScannerDialog({
                 <Files className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <DialogTitle className="text-lg font-semibold">
-                  Duplicate Scanner
-                </DialogTitle>
+                <DialogTitle className="text-lg font-semibold">Duplicate Scanner</DialogTitle>
                 <DialogDescription className="text-sm text-muted-foreground">
-                  {viewMode === "start" && (selectedBucket ? `Scan ${selectedBucket} for duplicates` : "Select a bucket first")}
+                  {viewMode === "start" &&
+                    (selectedBucket
+                      ? `Scan ${selectedBucket} for duplicates`
+                      : "Select a bucket first")}
                   {viewMode === "scanning" && `Scanning ${selectedBucket}`}
                   {viewMode === "results" && `Results for ${selectedBucket}`}
                   {viewMode === "history" && `Scan history for ${selectedBucket || "all buckets"}`}
@@ -768,16 +736,13 @@ export function DuplicateScannerDialog({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete {selectedFiles.size} files?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the selected duplicate files from your bucket.
-              This action cannot be undone.
+              This will permanently delete the selected duplicate files from your bucket. This
+              action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              onClick={confirmDelete}
-            >
+            <AlertDialogAction variant="destructive" onClick={confirmDelete}>
               Delete Files
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -790,7 +755,12 @@ export function DuplicateScannerDialog({
 function ScanStatusBadge({ status }: { status: string }) {
   const config = {
     running: { icon: Loader2, color: "text-primary", bg: "bg-primary/10", animate: true },
-    completed: { icon: CheckCircle2, color: "text-green-500", bg: "bg-green-500/10", animate: false },
+    completed: {
+      icon: CheckCircle2,
+      color: "text-green-500",
+      bg: "bg-green-500/10",
+      animate: false,
+    },
     failed: { icon: XCircle, color: "text-destructive", bg: "bg-destructive/10", animate: false },
     cancelled: { icon: XCircle, color: "text-muted-foreground", bg: "bg-muted", animate: false },
   }[status] || { icon: Files, color: "text-muted-foreground", bg: "bg-muted", animate: false };
@@ -802,7 +772,7 @@ function ScanStatusBadge({ status }: { status: string }) {
       className={cn(
         "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
         config.bg,
-        config.color
+        config.color,
       )}
     >
       <Icon className={cn("h-3 w-3", config.animate && "animate-spin")} />
@@ -844,7 +814,7 @@ function VirtualizedDuplicateGroups({
 
     if (expandedGroups.has(group.id)) {
       // Expanded: header + action buttons + all file rows
-      return GROUP_HEADER_HEIGHT + EXPANDED_HEADER_HEIGHT + (group.files.length * FILE_ROW_HEIGHT);
+      return GROUP_HEADER_HEIGHT + EXPANDED_HEADER_HEIGHT + group.files.length * FILE_ROW_HEIGHT;
     }
     return GROUP_HEADER_HEIGHT;
   };
@@ -862,10 +832,7 @@ function VirtualizedDuplicateGroups({
   }, [expandedGroups, virtualizer]);
 
   return (
-    <div
-      ref={parentRef}
-      className="min-h-0 flex-1 overflow-auto"
-    >
+    <div ref={parentRef} className="min-h-0 flex-1 overflow-auto">
       <div
         style={{
           height: `${virtualizer.getTotalSize()}px`,
@@ -993,7 +960,7 @@ function DuplicateGroupRow({
                 key={file.id}
                 className={cn(
                   "flex items-center gap-3 rounded px-2 py-1.5",
-                  selectedFiles.has(file.key) && "bg-destructive/10"
+                  selectedFiles.has(file.key) && "bg-destructive/10",
                 )}
               >
                 <Checkbox
