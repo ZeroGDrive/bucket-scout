@@ -6,8 +6,7 @@ export const queryKeys = {
   accounts: ["accounts"] as const,
   account: (id: string) => ["accounts", id] as const,
   buckets: (accountId: string) => ["buckets", accountId] as const,
-  bucketConfig: (accountId: string, bucket: string) =>
-    ["bucketConfig", accountId, bucket] as const,
+  bucketConfig: (accountId: string, bucket: string) => ["bucketConfig", accountId, bucket] as const,
   bucketAnalytics: (accountId: string, bucket: string) =>
     ["bucketAnalytics", accountId, bucket] as const,
   objects: (accountId: string, bucket: string, prefix: string) =>
@@ -380,12 +379,8 @@ export function useRestoreVersion() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (params: {
-      accountId: string;
-      bucket: string;
-      key: string;
-      versionId: string;
-    }) => objects.restoreVersion(params),
+    mutationFn: (params: { accountId: string; bucket: string; key: string; versionId: string }) =>
+      objects.restoreVersion(params),
     onSuccess: (_, variables) => {
       // Invalidate versions list to show the new restored version
       queryClient.invalidateQueries({
@@ -404,11 +399,7 @@ export function useRestoreVersion() {
 }
 
 // Object tags query
-export function useObjectTags(
-  accountId: string | null,
-  bucket: string | null,
-  key: string | null,
-) {
+export function useObjectTags(accountId: string | null, bucket: string | null, key: string | null) {
   return useQuery({
     queryKey: queryKeys.tags(accountId || "", bucket || "", key || ""),
     queryFn: () =>
@@ -546,8 +537,7 @@ export function useDeleteBucketLifecycle() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (params: { accountId: string; bucket: string }) =>
-      buckets.deleteLifecycle(params),
+    mutationFn: (params: { accountId: string; bucket: string }) => buckets.deleteLifecycle(params),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.bucketConfig(variables.accountId, variables.bucket),

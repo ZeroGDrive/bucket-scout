@@ -59,14 +59,8 @@ export function VersionHistoryDialog({
 }: VersionHistoryDialogProps) {
   const [restoringVersionId, setRestoringVersionId] = useState<string | null>(null);
 
-  const {
-    data,
-    isLoading,
-    error,
-    hasNextPage,
-    fetchNextPage,
-    isFetchingNextPage,
-  } = useObjectVersions(open ? accountId : null, open ? bucket : null, open ? objectKey : null);
+  const { data, isLoading, error, hasNextPage, fetchNextPage, isFetchingNextPage } =
+    useObjectVersions(open ? accountId : null, open ? bucket : null, open ? objectKey : null);
 
   const restoreMutation = useRestoreVersion();
 

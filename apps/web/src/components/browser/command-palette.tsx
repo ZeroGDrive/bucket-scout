@@ -110,7 +110,7 @@ export function CommandPalette() {
     setOpen(false);
     // Focus the search input after closing the palette
     setTimeout(() => {
-      const searchInput = document.querySelector<HTMLInputElement>('[data-search-input]');
+      const searchInput = document.querySelector<HTMLInputElement>("[data-search-input]");
       searchInput?.focus();
     }, 100);
   }, []);
@@ -129,15 +129,21 @@ export function CommandPalette() {
     setOpen(false);
   }, [selectedAccountId, selectedBucket, selectedFileKeys, cutToClipboard]);
 
-  const handleSelectAccount = useCallback((accountId: string) => {
-    setAccount(accountId);
-    setOpen(false);
-  }, [setAccount]);
+  const handleSelectAccount = useCallback(
+    (accountId: string) => {
+      setAccount(accountId);
+      setOpen(false);
+    },
+    [setAccount],
+  );
 
-  const handleSelectBucket = useCallback((bucketName: string) => {
-    setBucket(bucketName);
-    setOpen(false);
-  }, [setBucket]);
+  const handleSelectBucket = useCallback(
+    (bucketName: string) => {
+      setBucket(bucketName);
+      setOpen(false);
+    },
+    [setBucket],
+  );
 
   const handleClearSelection = useCallback(() => {
     clearSelection();
@@ -146,7 +152,7 @@ export function CommandPalette() {
 
   // Trigger actions through custom events (will be handled by parent components)
   const dispatchAction = useCallback((action: string) => {
-    window.dispatchEvent(new CustomEvent('command-palette-action', { detail: action }));
+    window.dispatchEvent(new CustomEvent("command-palette-action", { detail: action }));
     setOpen(false);
   }, []);
 
@@ -168,12 +174,12 @@ export function CommandPalette() {
             <span>Search files</span>
             <CommandShortcut>⌘F</CommandShortcut>
           </CommandItem>
-          <CommandItem onSelect={() => dispatchAction('new-folder')}>
+          <CommandItem onSelect={() => dispatchAction("new-folder")}>
             <FolderPlus />
             <span>New folder</span>
             <CommandShortcut>⌘⇧N</CommandShortcut>
           </CommandItem>
-          <CommandItem onSelect={() => dispatchAction('upload')}>
+          <CommandItem onSelect={() => dispatchAction("upload")}>
             <Upload />
             <span>Upload files</span>
           </CommandItem>
@@ -189,7 +195,7 @@ export function CommandPalette() {
         {hasSelection && (
           <>
             <CommandGroup heading={`Selection (${selectedFileKeys.length} items)`}>
-              <CommandItem onSelect={() => dispatchAction('download')}>
+              <CommandItem onSelect={() => dispatchAction("download")}>
                 <Download />
                 <span>Download selected</span>
               </CommandItem>
@@ -203,7 +209,7 @@ export function CommandPalette() {
                 <span>Cut selected</span>
                 <CommandShortcut>⌘X</CommandShortcut>
               </CommandItem>
-              <CommandItem onSelect={() => dispatchAction('delete')}>
+              <CommandItem onSelect={() => dispatchAction("delete")}>
                 <Trash2 />
                 <span>Delete selected</span>
                 <CommandShortcut>⌫</CommandShortcut>
@@ -222,11 +228,11 @@ export function CommandPalette() {
         {hasClipboard && (
           <>
             <CommandGroup heading="Clipboard">
-              <CommandItem onSelect={() => dispatchAction('paste')}>
+              <CommandItem onSelect={() => dispatchAction("paste")}>
                 <ClipboardPaste />
                 <span>
-                  Paste {clipboard.keys.length} item{clipboard.keys.length > 1 ? 's' : ''}{' '}
-                  ({clipboard.operation})
+                  Paste {clipboard.keys.length} item{clipboard.keys.length > 1 ? "s" : ""} (
+                  {clipboard.operation})
                 </span>
                 <CommandShortcut>⌘V</CommandShortcut>
               </CommandItem>
@@ -255,12 +261,12 @@ export function CommandPalette() {
         {/* View Options */}
         <CommandGroup heading="View">
           <CommandItem onSelect={handleToggleView}>
-            {viewMode === 'grid' ? <LayoutList /> : <LayoutGrid />}
-            <span>Switch to {viewMode === 'grid' ? 'list' : 'grid'} view</span>
+            {viewMode === "grid" ? <LayoutList /> : <LayoutGrid />}
+            <span>Switch to {viewMode === "grid" ? "list" : "grid"} view</span>
           </CommandItem>
           <CommandItem onSelect={handleTogglePreview}>
             {previewPanelOpen ? <EyeOff /> : <Eye />}
-            <span>{previewPanelOpen ? 'Hide' : 'Show'} preview panel</span>
+            <span>{previewPanelOpen ? "Hide" : "Show"} preview panel</span>
           </CommandItem>
         </CommandGroup>
 

@@ -54,7 +54,15 @@ export function UploadButton() {
 
       <DropdownMenu>
         <DropdownMenuTrigger
-          render={<Button variant="default" size="sm" disabled={disabled} className="gap-2" data-upload-trigger />}
+          render={
+            <Button
+              variant="default"
+              size="sm"
+              disabled={disabled}
+              className="gap-2"
+              data-upload-trigger
+            />
+          }
         >
           <Upload className="h-4 w-4" />
           Upload

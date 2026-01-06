@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   Dialog,
   DialogContent,
@@ -8,7 +9,6 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -130,10 +130,7 @@ function getFileName(key: string): string {
   return parts[parts.length - 1] || parts[parts.length - 2] || key;
 }
 
-export function OperationsHistoryDialog({
-  open,
-  onOpenChange,
-}: OperationsHistoryDialogProps) {
+export function OperationsHistoryDialog({ open, onOpenChange }: OperationsHistoryDialogProps) {
   const queryClient = useQueryClient();
   const { selectedAccountId, selectedBucket } = useBrowserStore();
 
@@ -219,7 +216,7 @@ export function OperationsHistoryDialog({
         console.error("Failed to export:", error);
       }
     },
-    [filter]
+    [filter],
   );
 
   const handleCleanup = useCallback(async () => {
@@ -244,9 +241,7 @@ export function OperationsHistoryDialog({
                 <History className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <DialogTitle className="text-lg font-semibold">
-                  Operations History
-                </DialogTitle>
+                <DialogTitle className="text-lg font-semibold">Operations History</DialogTitle>
                 <DialogDescription className="text-sm text-muted-foreground">
                   {selectedBucket ? `History for ${selectedBucket}` : "All buckets"}
                 </DialogDescription>
@@ -286,9 +281,7 @@ export function OperationsHistoryDialog({
               <div className="text-xs text-muted-foreground">Transferred</div>
             </div>
             <div className="rounded-lg border bg-card p-3">
-              <div className="text-2xl font-bold text-destructive">
-                {stats.failed}
-              </div>
+              <div className="text-2xl font-bold text-destructive">{stats.failed}</div>
               <div className="text-xs text-muted-foreground">Failed</div>
             </div>
             <div className="rounded-lg border bg-card p-3">
@@ -305,7 +298,10 @@ export function OperationsHistoryDialog({
 
         {/* Filters */}
         <div className="flex items-center gap-2 border-b bg-muted/30 p-3">
-          <Select value={operationTypeFilter} onValueChange={(val) => val && setOperationTypeFilter(val)}>
+          <Select
+            value={operationTypeFilter}
+            onValueChange={(val) => val && setOperationTypeFilter(val)}
+          >
             <SelectTrigger className="w-32">
               <SelectValue />
             </SelectTrigger>
@@ -359,35 +355,27 @@ export function OperationsHistoryDialog({
         </div>
 
         {/* Operations List */}
-        <ScrollArea className="min-h-0 flex-1">
-          <div className="divide-y">
-            {isLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : operationsData?.operations.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <BarChart3 className="h-12 w-12 text-muted-foreground/30" />
-                <p className="mt-4 text-sm text-muted-foreground">
-                  No operations found
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Operations will appear here as you use BucketScout
-                </p>
-              </div>
-            ) : (
-              operationsData?.operations.map((op) => (
-                <OperationRow key={op.id} operation={op} />
-              ))
-            )}
+        {isLoading ? (
+          <div className="flex min-h-0 flex-1 items-center justify-center">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
-        </ScrollArea>
+        ) : operationsData?.operations.length === 0 ? (
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-center text-center">
+            <BarChart3 className="h-12 w-12 text-muted-foreground/30" />
+            <p className="mt-4 text-sm text-muted-foreground">No operations found</p>
+            <p className="text-xs text-muted-foreground">
+              Operations will appear here as you use BucketScout
+            </p>
+          </div>
+        ) : (
+          <VirtualizedOperationsList operations={operationsData?.operations || []} />
+        )}
 
         {/* Footer */}
         <div className="flex items-center justify-between border-t bg-muted/20 p-3">
           <div className="text-xs text-muted-foreground">
-            Showing {operationsData?.operations.length || 0} of{" "}
-            {operationsData?.total || 0} operations
+            Showing {operationsData?.operations.length || 0} of {operationsData?.total || 0}{" "}
+            operations
           </div>
           <div className="flex gap-2">
             <Button variant="ghost" size="sm" onClick={handleCleanup}>
@@ -400,6 +388,51 @@ export function OperationsHistoryDialog({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// Row height constant for virtualization
+const OPERATION_ROW_HEIGHT = 72;
+
+function VirtualizedOperationsList({ operations }: { operations: Operation[] }) {
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  const virtualizer = useVirtualizer({
+    count: operations.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => OPERATION_ROW_HEIGHT,
+    overscan: 20,
+  });
+
+  return (
+    <div ref={parentRef} className="min-h-0 flex-1 overflow-auto">
+      <div
+        style={{
+          height: `${virtualizer.getTotalSize()}px`,
+          width: "100%",
+          position: "relative",
+        }}
+      >
+        {virtualizer.getVirtualItems().map((virtualItem) => {
+          const operation = operations[virtualItem.index];
+          return (
+            <div
+              key={operation.id}
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "100%",
+                height: `${virtualItem.size}px`,
+                transform: `translateY(${virtualItem.start}px)`,
+              }}
+            >
+              <OperationRow operation={operation} />
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -418,7 +451,7 @@ function OperationRow({ operation }: { operation: Operation }) {
     <div
       className={cn(
         "grid grid-cols-[auto_1fr_auto_auto_auto] items-center gap-4 p-3 hover:bg-muted/30",
-        operation.status === "failed" && "bg-destructive/5"
+        operation.status === "failed" && "bg-destructive/5",
       )}
     >
       {/* Status dot */}
@@ -430,7 +463,7 @@ function OperationRow({ operation }: { operation: Operation }) {
           <span
             className={cn(
               "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium",
-              iconColor
+              iconColor,
             )}
           >
             <Icon className="h-3 w-3" />
@@ -448,9 +481,7 @@ function OperationRow({ operation }: { operation: Operation }) {
           )}
         </div>
         {operation.status === "failed" && operation.errorMessage && (
-          <div className="mt-1 text-xs text-destructive">
-            {operation.errorMessage}
-          </div>
+          <div className="mt-1 text-xs text-destructive">{operation.errorMessage}</div>
         )}
       </div>
 

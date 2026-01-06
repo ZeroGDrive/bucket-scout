@@ -157,11 +157,7 @@ export const buckets = {
       bucket: params.bucket,
     }),
 
-  setLifecycle: (params: {
-    accountId: string;
-    bucket: string;
-    rules: LifecycleRuleConfig[];
-  }) =>
+  setLifecycle: (params: { accountId: string; bucket: string; rules: LifecycleRuleConfig[] }) =>
     invoke<void>("put_bucket_lifecycle", {
       accountId: params.accountId,
       bucket: params.bucket,
@@ -401,12 +397,7 @@ export const objects = {
       maxKeys: params.maxKeys,
     }),
 
-  restoreVersion: (params: {
-    accountId: string;
-    bucket: string;
-    key: string;
-    versionId: string;
-  }) =>
+  restoreVersion: (params: { accountId: string; bucket: string; key: string; versionId: string }) =>
     invoke<RestoreVersionResult>("restore_object_version", {
       accountId: params.accountId,
       bucket: params.bucket,

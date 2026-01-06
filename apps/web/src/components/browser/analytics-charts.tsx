@@ -70,7 +70,10 @@ interface StorageDonutChartProps {
 
 export function StorageDonutChart({ data, type, totalSize }: StorageDonutChartProps) {
   const chartData = data.map((item, index) => ({
-    name: type === "contentType" ? (item as ContentTypeStats).contentType : (item as StorageClassStats).storageClass,
+    name:
+      type === "contentType"
+        ? (item as ContentTypeStats).contentType
+        : (item as StorageClassStats).storageClass,
     size: item.size,
     count: item.objectCount,
     fill: CHART_COLORS[index % CHART_COLORS.length],
@@ -107,10 +110,7 @@ export function StorageDonutChart({ data, type, totalSize }: StorageDonutChartPr
       <div className="flex flex-wrap gap-2 justify-center">
         {chartData.map((item, index) => (
           <div key={index} className="flex items-center gap-1.5 text-xs">
-            <div
-              className="h-2.5 w-2.5 rounded-full"
-              style={{ backgroundColor: item.fill }}
-            />
+            <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.fill }} />
             <span className="text-muted-foreground">{item.name}</span>
           </div>
         ))}
@@ -149,7 +149,7 @@ export function FolderBarChart({ data, totalSize }: FolderBarChartProps) {
           dataKey="name"
           width={100}
           tick={{ fontSize: 12 }}
-          tickFormatter={(value) => value.length > 12 ? value.slice(0, 12) + "..." : value}
+          tickFormatter={(value) => (value.length > 12 ? value.slice(0, 12) + "..." : value)}
         />
         <Tooltip
           content={({ active, payload }) => {
@@ -161,9 +161,7 @@ export function FolderBarChart({ data, totalSize }: FolderBarChartProps) {
                 <p className="text-muted-foreground">
                   {formatBytes(data.size)} ({formatPercentage(data.size, totalSize)})
                 </p>
-                <p className="text-muted-foreground">
-                  {data.count.toLocaleString()} files
-                </p>
+                <p className="text-muted-foreground">{data.count.toLocaleString()} files</p>
               </div>
             );
           }}
@@ -203,7 +201,10 @@ export function LargeFilesTable({ files }: LargeFilesTableProps) {
             ? file.key.substring(0, file.key.lastIndexOf("/"))
             : "";
           return (
-            <div key={index} className="grid grid-cols-[1fr_auto_auto] gap-2 px-3 py-2 text-sm hover:bg-muted/30">
+            <div
+              key={index}
+              className="grid grid-cols-[1fr_auto_auto] gap-2 px-3 py-2 text-sm hover:bg-muted/30"
+            >
               <div className="min-w-0">
                 <div className="font-medium truncate" title={fileName}>
                   {fileName}
@@ -214,9 +215,7 @@ export function LargeFilesTable({ files }: LargeFilesTableProps) {
                   </div>
                 )}
               </div>
-              <div className="text-right font-mono text-xs w-20">
-                {formatBytes(file.size)}
-              </div>
+              <div className="text-right font-mono text-xs w-20">{formatBytes(file.size)}</div>
               <div className="text-right text-muted-foreground text-xs w-24 hidden sm:block">
                 {file.storageClass || "STANDARD"}
               </div>

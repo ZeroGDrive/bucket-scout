@@ -7,17 +7,14 @@ import type { OperationType, OperationStatus, LogOperationInput } from "@/lib/ty
  * This should be called after S3 operations complete (success or failure).
  */
 export function useOperationLogger() {
-  const logOperation = useCallback(
-    async (input: LogOperationInput): Promise<number | null> => {
-      try {
-        return await history.log(input);
-      } catch (error) {
-        console.error("Failed to log operation:", error);
-        return null;
-      }
-    },
-    []
-  );
+  const logOperation = useCallback(async (input: LogOperationInput): Promise<number | null> => {
+    try {
+      return await history.log(input);
+    } catch (error) {
+      console.error("Failed to log operation:", error);
+      return null;
+    }
+  }, []);
 
   const logUpload = useCallback(
     async (params: {
@@ -40,7 +37,7 @@ export function useOperationLogger() {
         errorMessage: params.errorMessage,
       });
     },
-    [logOperation]
+    [logOperation],
   );
 
   const logDownload = useCallback(
@@ -64,7 +61,7 @@ export function useOperationLogger() {
         errorMessage: params.errorMessage,
       });
     },
-    [logOperation]
+    [logOperation],
   );
 
   const logDelete = useCallback(
@@ -87,12 +84,12 @@ export function useOperationLogger() {
             status: params.status,
             durationMs: params.durationMs,
             errorMessage: params.errorMessage,
-          })
-        )
+          }),
+        ),
       );
       return results;
     },
-    [logOperation]
+    [logOperation],
   );
 
   const logCopy = useCallback(
@@ -118,7 +115,7 @@ export function useOperationLogger() {
         errorMessage: params.errorMessage,
       });
     },
-    [logOperation]
+    [logOperation],
   );
 
   const logMove = useCallback(
@@ -144,7 +141,7 @@ export function useOperationLogger() {
         errorMessage: params.errorMessage,
       });
     },
-    [logOperation]
+    [logOperation],
   );
 
   const logRename = useCallback(
@@ -168,7 +165,7 @@ export function useOperationLogger() {
         errorMessage: params.errorMessage,
       });
     },
-    [logOperation]
+    [logOperation],
   );
 
   const logCreateFolder = useCallback(
@@ -190,7 +187,7 @@ export function useOperationLogger() {
         errorMessage: params.errorMessage,
       });
     },
-    [logOperation]
+    [logOperation],
   );
 
   return {

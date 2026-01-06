@@ -28,6 +28,7 @@ import { EditMetadataDialog } from "./edit-metadata-dialog";
 import { VersionHistoryDialog } from "./version-history-dialog";
 import { TagsEditorDialog } from "./tags-editor-dialog";
 import type { ObjectMetadata } from "@/lib/types";
+import { openUrl } from "@/lib/open-url";
 
 function formatFileSize(bytes: number): string {
   if (bytes === 0) return "0 B";
@@ -232,7 +233,7 @@ export function PreviewPanel() {
             className="flex-1"
             onClick={() => {
               const url = getPublicUrl();
-              if (url) window.open(url, "_blank");
+              if (url) openUrl(url);
             }}
           >
             <ExternalLink className="h-3.5 w-3.5 mr-1.5" />

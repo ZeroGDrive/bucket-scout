@@ -13,6 +13,8 @@ import {
   History,
   Files,
   FolderSync,
+  Heart,
+  Github,
 } from "lucide-react";
 import { Logo } from "@/components/icons/logo";
 import {
@@ -71,8 +73,10 @@ import { BucketAnalyticsDialog } from "@/components/browser/bucket-analytics-dia
 import { OperationsHistoryDialog } from "@/components/history";
 import { DuplicateScannerDialog } from "@/components/duplicates";
 import { FolderSyncDialog } from "@/components/sync";
+import { SupportMeDialog } from "@/components/support";
 import { toast } from "sonner";
 import { parseS3Error } from "@/lib/utils";
+import { openUrl } from "@/lib/open-url";
 
 export function AppSidebar() {
   const [addAccountOpen, setAddAccountOpen] = useState(false);
@@ -101,6 +105,7 @@ export function AppSidebar() {
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [duplicateScannerOpen, setDuplicateScannerOpen] = useState(false);
   const [folderSyncOpen, setFolderSyncOpen] = useState(false);
+  const [supportMeOpen, setSupportMeOpen] = useState(false);
   const [forceDelete, setForceDelete] = useState(false);
 
   const selectedAccountId = useBrowserStore((s) => s.selectedAccountId);
@@ -223,7 +228,16 @@ export function AppSidebar() {
                         tooltip={account.name}
                       >
                         <Database className="h-4 w-4 shrink-0" />
-                        <span className="truncate">{account.name}</span>
+                        <span className="truncate flex-1">{account.name}</span>
+                        <span
+                          className={`text-[9px] font-medium px-1.5 py-0.5 rounded group-data-[collapsible=icon]:hidden ${
+                            account.providerType === "cloudflare_r2"
+                              ? "bg-orange-500/15 text-orange-600 dark:text-orange-400"
+                              : "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                          }`}
+                        >
+                          {account.providerType === "cloudflare_r2" ? "R2" : "S3"}
+                        </span>
                       </SidebarMenuButton>
                       <DropdownMenu>
                         <DropdownMenuTrigger className="absolute right-1 top-1.5 flex aspect-square w-5 items-center justify-center rounded-sm p-0 text-sidebar-foreground ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 outline-hidden transition-transform opacity-0 group-hover/menu-item:opacity-100 data-[open]:opacity-100 group-data-[collapsible=icon]:hidden">
@@ -441,7 +455,29 @@ export function AppSidebar() {
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
-          <div className="flex items-center gap-2 text-[10px] text-muted-foreground group-data-[collapsible=icon]:hidden mt-2">
+
+          <SidebarSeparator className="my-2" />
+
+          {/* Author & Support */}
+          <div className="flex items-center gap-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-2">
+            <button
+              onClick={() => setSupportMeOpen(true)}
+              className="flex-1 flex items-center justify-center gap-2 px-2 py-2 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-sidebar-accent transition-colors group-data-[collapsible=icon]:w-full"
+            >
+              <Heart className="h-3.5 w-3.5 shrink-0 text-primary/70" />
+              <span className="group-data-[collapsible=icon]:hidden">Support</span>
+            </button>
+            <button
+              onClick={() => openUrl("https://github.com/ZeroGDrive/bucket-scout")}
+              className="flex-1 flex items-center justify-center gap-2 px-2 py-2 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-sidebar-accent transition-colors group-data-[collapsible=icon]:w-full"
+              title="View on GitHub"
+            >
+              <Github className="h-3.5 w-3.5 shrink-0" />
+              <span className="group-data-[collapsible=icon]:hidden">GitHub</span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 text-[10px] text-muted-foreground group-data-[collapsible=icon]:hidden mt-1">
             <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
             <span className="uppercase tracking-wider">Connected</span>
           </div>
@@ -474,27 +510,23 @@ export function AppSidebar() {
         <BucketAnalyticsDialog
           open={analyticsBucketDialog.open}
           onOpenChange={(open) =>
-            setAnalyticsBucketDialog({ open, bucketName: open ? analyticsBucketDialog.bucketName : "" })
+            setAnalyticsBucketDialog({
+              open,
+              bucketName: open ? analyticsBucketDialog.bucketName : "",
+            })
           }
           accountId={selectedAccountId}
           bucket={analyticsBucketDialog.bucketName}
         />
       )}
 
-      <OperationsHistoryDialog
-        open={historyDialogOpen}
-        onOpenChange={setHistoryDialogOpen}
-      />
+      <OperationsHistoryDialog open={historyDialogOpen} onOpenChange={setHistoryDialogOpen} />
 
-      <DuplicateScannerDialog
-        open={duplicateScannerOpen}
-        onOpenChange={setDuplicateScannerOpen}
-      />
+      <DuplicateScannerDialog open={duplicateScannerOpen} onOpenChange={setDuplicateScannerOpen} />
 
-      <FolderSyncDialog
-        open={folderSyncOpen}
-        onOpenChange={setFolderSyncOpen}
-      />
+      <FolderSyncDialog open={folderSyncOpen} onOpenChange={setFolderSyncOpen} />
+
+      <SupportMeDialog open={supportMeOpen} onOpenChange={setSupportMeOpen} />
 
       <AlertDialog
         open={deleteBucketDialog.open}

@@ -18,6 +18,7 @@
     "fs:allow-temp-write-recursive",
     "fs:read-all",
     "fs:write-all",
-    "dialog:default"
+    "dialog:default",
+    "opener:default"
   ]
 }

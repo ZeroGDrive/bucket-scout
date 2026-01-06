@@ -24,11 +24,7 @@ const ELLIPSIS_WIDTH = 50;
 // Width of chevron separator
 const CHEVRON_WIDTH = 20;
 
-export function ResponsiveBreadcrumb({
-  bucket,
-  path,
-  onNavigate,
-}: ResponsiveBreadcrumbProps) {
+export function ResponsiveBreadcrumb({ bucket, path, onNavigate }: ResponsiveBreadcrumbProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [maxVisibleSegments, setMaxVisibleSegments] = useState(10);
 

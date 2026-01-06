@@ -81,3 +81,6 @@ notify = "6.1"
 
 # Native dialogs (folder picker for sync)
 tauri-plugin-dialog = "2"
+
+# Open URLs in default browser
+tauri-plugin-opener = "2"
