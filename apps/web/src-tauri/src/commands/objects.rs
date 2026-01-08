@@ -1103,11 +1103,14 @@ pub struct RenameResult {
 pub async fn rename_object(
     credentials: State<'_, CredentialsManager>,
     s3_clients: State<'_, S3ClientManager>,
+    db: State<'_, DbManager>,
     account_id: String,
     bucket: String,
     old_key: String,
     new_name: String,
 ) -> Result<RenameResult, AppError> {
+    let start_time = Instant::now();
+
     // Validate new name
     if new_name.is_empty() {
         return Err(AppError::InvalidInput("New name cannot be empty".into()));
@@ -1243,6 +1246,20 @@ pub async fn rename_object(
         objects_renamed = 1;
     }
 
+    let duration_ms = start_time.elapsed().as_millis() as i64;
+
+    // Log successful rename to history
+    let _ = db.log_completed_operation(
+        &account_id,
+        &bucket,
+        OperationType::Rename,
+        Some(&old_key),
+        Some(&new_key),
+        None,
+        duration_ms,
+        None,
+    );
+
     Ok(RenameResult {
         old_key,
         new_key,
@@ -1271,12 +1288,14 @@ pub struct CopyMoveError {
 pub async fn copy_objects(
     credentials: State<'_, CredentialsManager>,
     s3_clients: State<'_, S3ClientManager>,
+    db: State<'_, DbManager>,
     account_id: String,
     bucket: String,
     source_keys: Vec<String>,
     destination_prefix: String,
     delete_source: bool,
 ) -> Result<CopyMoveResult, AppError> {
+    let start_time = Instant::now();
     let account = credentials.get_account(&account_id)?;
     let secret = credentials.get_secret_key(&account_id)?;
 
@@ -1432,6 +1451,29 @@ pub async fn copy_objects(
         }
     }
 
+    let duration_ms = start_time.elapsed().as_millis() as i64;
+
+    // Log copy/move operations to history
+    let operation_type = if delete_source {
+        OperationType::Move
+    } else {
+        OperationType::Copy
+    };
+
+    for source_key in &source_keys {
+        let has_error = errors.iter().any(|e| &e.source_key == source_key);
+        let _ = db.log_completed_operation(
+            &account_id,
+            &bucket,
+            operation_type.clone(),
+            Some(source_key),
+            Some(&destination_prefix),
+            None,
+            duration_ms / source_keys.len().max(1) as i64,
+            if has_error { Some("Copy/move failed") } else { None },
+        );
+    }
+
     Ok(CopyMoveResult {
         objects_copied,
         objects_deleted,
@@ -1444,6 +1486,7 @@ pub async fn copy_objects(
 pub async fn copy_objects_across_buckets(
     credentials: State<'_, CredentialsManager>,
     s3_clients: State<'_, S3ClientManager>,
+    db: State<'_, DbManager>,
     source_account_id: String,
     source_bucket: String,
     dest_account_id: String,
@@ -1452,6 +1495,7 @@ pub async fn copy_objects_across_buckets(
     destination_prefix: String,
     delete_source: bool,
 ) -> Result<CopyMoveResult, AppError> {
+    let start_time = Instant::now();
     let source_account = credentials.get_account(&source_account_id)?;
     let source_secret = credentials.get_secret_key(&source_account_id)?;
     let source_client = s3_clients
@@ -1655,6 +1699,30 @@ pub async fn copy_objects_across_buckets(
                 }
             }
         }
+    }
+
+    let duration_ms = start_time.elapsed().as_millis() as i64;
+
+    // Log copy/move operations to history (for both source and dest buckets)
+    let operation_type = if delete_source {
+        OperationType::Move
+    } else {
+        OperationType::Copy
+    };
+
+    for source_key in &source_keys {
+        let has_error = errors.iter().any(|e| &e.source_key == source_key);
+        // Log for source bucket
+        let _ = db.log_completed_operation(
+            &source_account_id,
+            &source_bucket,
+            operation_type.clone(),
+            Some(source_key),
+            Some(&format!("{}/{}", dest_bucket, destination_prefix)),
+            None,
+            duration_ms / source_keys.len().max(1) as i64,
+            if has_error { Some("Copy/move failed") } else { None },
+        );
     }
 
     Ok(CopyMoveResult {
