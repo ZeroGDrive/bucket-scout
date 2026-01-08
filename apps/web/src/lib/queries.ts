@@ -268,6 +268,9 @@ export function useRenameObject() {
       queryClient.invalidateQueries({
         queryKey: ["objects", variables.accountId, variables.bucket],
       });
+      // Invalidate history queries so the operation appears in history
+      queryClient.invalidateQueries({ queryKey: ["operations"] });
+      queryClient.invalidateQueries({ queryKey: ["operation-stats"] });
     },
   });
 }
@@ -289,6 +292,9 @@ export function useCopyMoveObjects() {
       queryClient.invalidateQueries({
         queryKey: ["objects", variables.accountId, variables.bucket],
       });
+      // Invalidate history queries so the operation appears in history
+      queryClient.invalidateQueries({ queryKey: ["operations"] });
+      queryClient.invalidateQueries({ queryKey: ["operation-stats"] });
     },
   });
 }
@@ -315,6 +321,9 @@ export function useCopyMoveObjectsAcrossBuckets() {
       queryClient.invalidateQueries({
         queryKey: ["objects", variables.destAccountId, variables.destBucket],
       });
+      // Invalidate history queries so the operation appears in history
+      queryClient.invalidateQueries({ queryKey: ["operations"] });
+      queryClient.invalidateQueries({ queryKey: ["operation-stats"] });
     },
   });
 }

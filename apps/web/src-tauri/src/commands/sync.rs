@@ -5,7 +5,7 @@ use crate::db::sync::{
 };
 use crate::db::DbManager;
 use crate::error::AppError;
-use crate::s3::client::S3ClientManager;
+use crate::s3::client::{extract_region_from_redirect_error, is_redirect_error, S3ClientManager};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::path::Path;
@@ -146,19 +146,20 @@ pub async fn preview_sync(
         .get_sync_pair(pair_id)?
         .ok_or_else(|| AppError::InvalidInput("Sync pair not found".to_string()))?;
 
-    // Get S3 client
+    // Get S3 client with automatic region detection
     let account = credentials.get_account(&pair.account_id)?;
     let secret = credentials.get_secret_key(&pair.account_id)?;
-    let client = s3_clients
-        .get_or_create_client(
-            &pair.account_id,
-            &account.endpoint,
-            &account.access_key_id,
-            &secret,
-            account.provider_type,
-            account.region.as_deref(),
-        )
-        .await?;
+    let client = get_bucket_client(
+        &s3_clients,
+        &pair.account_id,
+        &pair.bucket,
+        &account.endpoint,
+        &account.access_key_id,
+        &secret,
+        account.provider_type,
+        account.region.as_deref(),
+    )
+    .await?;
 
     // Scan current state
     let (local_current, remote_current) =
@@ -281,19 +282,20 @@ pub async fn start_sync(
         db.clear_tracked_files(pair_id)?;
     }
 
-    // Get S3 client
+    // Get S3 client with automatic region detection
     let account = credentials.get_account(&pair.account_id)?;
     let secret = credentials.get_secret_key(&pair.account_id)?;
-    let client = s3_clients
-        .get_or_create_client(
-            &pair.account_id,
-            &account.endpoint,
-            &account.access_key_id,
-            &secret,
-            account.provider_type,
-            account.region.as_deref(),
-        )
-        .await?;
+    let client = get_bucket_client(
+        &s3_clients,
+        &pair.account_id,
+        &pair.bucket,
+        &account.endpoint,
+        &account.access_key_id,
+        &secret,
+        account.provider_type,
+        account.region.as_deref(),
+    )
+    .await?;
 
     // Clone values for async task
     let db_clone = (*db).clone();
@@ -376,13 +378,63 @@ pub async fn get_sync_sessions(
 
 // ==================== Helper Functions ====================
 
+/// Get an S3 client for a bucket, handling region detection via redirect errors
+/// This tries to access the bucket and if it gets a PermanentRedirect, extracts the
+/// correct region and creates a new client
+async fn get_bucket_client(
+    s3_clients: &S3ClientManager,
+    account_id: &str,
+    bucket: &str,
+    endpoint: &str,
+    access_key_id: &str,
+    secret_access_key: &str,
+    provider_type: crate::provider::ProviderType,
+    region: Option<&str>,
+) -> Result<Arc<aws_sdk_s3::Client>, AppError> {
+    // First, try to get or create the bucket-specific client
+    let client = s3_clients
+        .get_or_create_bucket_client(
+            account_id,
+            bucket,
+            endpoint,
+            access_key_id,
+            secret_access_key,
+            provider_type,
+            region,
+        )
+        .await?;
+
+    // Try a simple operation to check if we have the right region
+    // HeadBucket is lightweight and will fail fast with redirect if wrong region
+    let result = client.head_bucket().bucket(bucket).send().await;
+
+    match result {
+        Ok(_) => Ok(client),
+        Err(e) => {
+            let error_str = format!("{:?}", e);
+            if is_redirect_error(&error_str) {
+                // Extract the correct region from the error
+                if let Some(correct_region) = extract_region_from_redirect_error(&error_str) {
+                    // Create a new client with the correct region
+                    let new_client = s3_clients
+                        .create_client_with_region(account_id, bucket, &correct_region)
+                        .await?;
+                    return Ok(new_client);
+                }
+            }
+            // If we couldn't extract region or it's a different error, return the original error
+            Err(AppError::S3(error_str))
+        }
+    }
+}
+
 /// Scan current local and remote state
 async fn scan_current_state(
-    app: &AppHandle,
+    _app: &AppHandle,
     client: &aws_sdk_s3::Client,
-    db: &DbManager,
+    _db: &DbManager,
     pair: &SyncPair,
-    pair_id: i64,
+    _pair_id: i64,
 ) -> Result<(HashMap<String, DetectedChange>, HashMap<String, DetectedChange>), AppError> {
     // Scan local files
     let local_current = scan_local_files(&pair.local_path)?;
