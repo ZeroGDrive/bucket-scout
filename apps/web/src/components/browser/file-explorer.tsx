@@ -1,4 +1,4 @@
-import { useMemo, memo, useState, useCallback, useEffect } from "react";
+import { useMemo, memo, useState, useCallback, useEffect, useRef } from "react";
 import {
   Folder,
   File,
@@ -27,7 +27,7 @@ import {
   useCopyMoveObjects,
   useCopyMoveObjectsAcrossBuckets,
 } from "@/lib/queries";
-import { cn } from "@/lib/utils";
+import { cn, parseS3Error } from "@/lib/utils";
 import type { FileItem } from "@/lib/types";
 import { Loader2, SearchX } from "lucide-react";
 import { useDownloadManager } from "@/hooks/use-download-manager";
@@ -125,6 +125,7 @@ const ThumbnailImage = memo(function ThumbnailImage({
         layout="fullWidth"
         aspectRatio={thumbnail.width / thumbnail.height}
         className="w-full h-full object-cover rounded-lg"
+        draggable={false}
       />
     );
   }
@@ -190,7 +191,59 @@ export function FileExplorer() {
   const cutToClipboard = useBrowserStore((s) => s.cutToClipboard);
   const clearClipboard = useBrowserStore((s) => s.clearClipboard);
 
+  // Drag state for internal drag-drop
+  const setDragState = useBrowserStore((s) => s.setDragState);
+  const clearDragState = useBrowserStore((s) => s.clearDragState);
+  const dragPreviewRef = useRef<HTMLDivElement | null>(null);
+  const dragCandidateRef = useRef<{
+    x: number;
+    y: number;
+    keys: string[];
+    sourcePrefix: string;
+  } | null>(null);
+  const dragActiveRef = useRef(false);
+  const dragKeysRef = useRef<string[]>([]);
+  const suppressClickRef = useRef(false);
+  const previousUserSelectRef = useRef<string | null>(null);
+  const cleanupDragRef = useRef<(() => void) | null>(null);
+  const [dropTargetKey, setDropTargetKey] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  // Marquee selection state
+  const [marquee, setMarquee] = useState<{
+    startX: number;
+    startY: number;
+    currentX: number;
+    currentY: number;
+  } | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const wasMarqueeActiveRef = useRef(false);
+
   const prefix = useCurrentPrefix();
+
+  // Create custom drag preview element
+  const createDragPreview = useCallback((count: number) => {
+    // Remove existing preview
+    if (dragPreviewRef.current) {
+      document.body.removeChild(dragPreviewRef.current);
+    }
+
+    const preview = document.createElement("div");
+    preview.className =
+      "fixed pointer-events-none bg-primary text-primary-foreground px-3 py-2 rounded-lg shadow-lg flex items-center gap-2 text-sm font-medium z-[9999]";
+    preview.innerHTML = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/>
+        <path d="M14 2v4a2 2 0 0 0 2 2h4"/>
+      </svg>
+      <span>${count} item${count > 1 ? "s" : ""}</span>
+    `;
+    preview.style.left = "-9999px";
+    preview.style.top = "-9999px";
+    document.body.appendChild(preview);
+    dragPreviewRef.current = preview;
+    return preview;
+  }, []);
 
   const { data, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage } = useObjects(
     selectedAccountId,
@@ -213,6 +266,58 @@ export function FileExplorer() {
   const copyMoveObjects = useCopyMoveObjects();
   const copyMoveObjectsAcrossBuckets = useCopyMoveObjectsAcrossBuckets();
   const { queueDownloads, queueFolderDownload } = useDownloadManager();
+
+  const moveKeysToPrefix = useCallback(
+    (keysToMove: string[], destinationPrefix: string) => {
+      if (!selectedAccountId || !selectedBucket || keysToMove.length === 0) {
+        return;
+      }
+
+      if (destinationPrefix === prefix) {
+        return;
+      }
+
+      if (keysToMove.includes(destinationPrefix)) {
+        return;
+      }
+
+      const toastId = toast.loading(
+        `Moving ${keysToMove.length} item${keysToMove.length > 1 ? "s" : ""}...`,
+      );
+
+      copyMoveObjects.mutate(
+        {
+          accountId: selectedAccountId,
+          bucket: selectedBucket,
+          sourceKeys: keysToMove,
+          destinationPrefix,
+          deleteSource: true,
+        },
+        {
+          onSuccess: (result) => {
+            clearSelection();
+            if (result.errors.length > 0) {
+              toast.error(
+                `Moved ${result.objectsCopied} item(s), but ${result.errors.length} failed`,
+                {
+                  id: toastId,
+                },
+              );
+            } else {
+              toast.success(`Moved ${result.objectsCopied} item(s)`, { id: toastId });
+            }
+          },
+          onError: (error) => {
+            toast.error("Failed to move items", {
+              id: toastId,
+              description: parseS3Error(error),
+            });
+          },
+        },
+      );
+    },
+    [selectedAccountId, selectedBucket, prefix, copyMoveObjects, clearSelection],
+  );
 
   // Context menu state
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -362,15 +467,193 @@ export function FileExplorer() {
     [items, selectedFileKeys],
   );
 
-  // Prevent text selection on shift+click (must be on mousedown, not click)
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (e.shiftKey) {
-      e.preventDefault();
-    }
+  const updateDragPreviewPosition = useCallback((x: number, y: number) => {
+    if (!dragPreviewRef.current) return;
+    dragPreviewRef.current.style.left = `${x + 12}px`;
+    dragPreviewRef.current.style.top = `${y + 12}px`;
   }, []);
+
+  const getDropTargetAtPoint = useCallback(
+    (x: number, y: number, keysToMove: string[]) => {
+      const el = document.elementFromPoint(x, y) as HTMLElement | null;
+      if (!el) return null;
+
+      const itemEl = el.closest("[data-file-item]") as HTMLElement | null;
+      if (itemEl) {
+        const isFolder = itemEl.getAttribute("data-is-folder") === "true";
+        const key = itemEl.getAttribute("data-item-key");
+        if (isFolder && key && !keysToMove.includes(key)) {
+          return { type: "folder" as const, key };
+        }
+      }
+
+      const breadcrumbEl = el.closest("[data-drop-prefix]") as HTMLElement | null;
+      if (breadcrumbEl) {
+        const prefixAttr = breadcrumbEl.getAttribute("data-drop-prefix");
+        if (prefixAttr !== null) {
+          return { type: "breadcrumb" as const, prefix: prefixAttr };
+        }
+      }
+
+      return null;
+    },
+    [],
+  );
+
+  const cleanupDrag = useCallback(() => {
+    dragActiveRef.current = false;
+    dragKeysRef.current = [];
+    dragCandidateRef.current = null;
+    setDropTargetKey(null);
+    clearDragState();
+    setIsDragging(false);
+    suppressClickRef.current = false;
+
+    if (dragPreviewRef.current) {
+      document.body.removeChild(dragPreviewRef.current);
+      dragPreviewRef.current = null;
+    }
+
+    if (previousUserSelectRef.current !== null) {
+      document.body.style.userSelect = previousUserSelectRef.current;
+      previousUserSelectRef.current = null;
+    }
+  }, [clearDragState]);
+
+  // Keep ref in sync with callback for use in other callbacks
+  cleanupDragRef.current = cleanupDrag;
+
+  const startDrag = useCallback(
+    (x: number, y: number, keysToMove: string[], sourcePrefix: string) => {
+      dragActiveRef.current = true;
+      dragKeysRef.current = keysToMove;
+      setIsDragging(true);
+      setDragState(keysToMove, sourcePrefix);
+
+      if (previousUserSelectRef.current === null) {
+        previousUserSelectRef.current = document.body.style.userSelect;
+        document.body.style.userSelect = "none";
+      }
+
+      const preview = createDragPreview(keysToMove.length);
+      preview.style.left = `${x + 12}px`;
+      preview.style.top = `${y + 12}px`;
+      updateDragPreviewPosition(x, y);
+
+      const target = getDropTargetAtPoint(x, y, keysToMove);
+      setDropTargetKey(target?.type === "folder" ? target.key : null);
+    },
+    [createDragPreview, getDropTargetAtPoint, setDragState, updateDragPreviewPosition],
+  );
+
+  const updateDrag = useCallback(
+    (x: number, y: number) => {
+      if (!dragActiveRef.current) return;
+      updateDragPreviewPosition(x, y);
+      const target = getDropTargetAtPoint(x, y, dragKeysRef.current);
+      setDropTargetKey(target?.type === "folder" ? target.key : null);
+    },
+    [getDropTargetAtPoint, updateDragPreviewPosition],
+  );
+
+  const endDrag = useCallback(
+    (x: number, y: number) => {
+      if (!dragActiveRef.current) {
+        dragCandidateRef.current = null;
+        return;
+      }
+
+      const keysToMove = dragKeysRef.current;
+      const target = getDropTargetAtPoint(x, y, keysToMove);
+      if (target?.type === "folder") {
+        moveKeysToPrefix(keysToMove, target.key);
+      } else if (target?.type === "breadcrumb") {
+        moveKeysToPrefix(keysToMove, target.prefix);
+      }
+
+      cleanupDragRef.current?.();
+      suppressClickRef.current = true;
+      requestAnimationFrame(() => {
+        suppressClickRef.current = false;
+      });
+    },
+    [getDropTargetAtPoint, moveKeysToPrefix],
+  );
+
+  // Effect to handle drag events
+  useEffect(() => {
+    const handleMove = (e: MouseEvent) => {
+      if (!dragCandidateRef.current) return;
+
+      if (!dragActiveRef.current) {
+        const dx = e.clientX - dragCandidateRef.current.x;
+        const dy = e.clientY - dragCandidateRef.current.y;
+        if (Math.hypot(dx, dy) > 4) {
+          startDrag(
+            e.clientX,
+            e.clientY,
+            dragCandidateRef.current.keys,
+            dragCandidateRef.current.sourcePrefix,
+          );
+        }
+        return;
+      }
+
+      updateDrag(e.clientX, e.clientY);
+    };
+
+    const handleUp = (e: MouseEvent) => {
+      endDrag(e.clientX, e.clientY);
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && dragActiveRef.current) {
+        cleanupDragRef.current?.();
+      }
+    };
+
+    window.addEventListener("mousemove", handleMove);
+    window.addEventListener("mouseup", handleUp);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mouseup", handleUp);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [endDrag, startDrag, updateDrag]);
+
+  // Handle mouse down on items - set up custom drag candidate
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent, item?: FileItem) => {
+      if (e.shiftKey) {
+        e.preventDefault();
+      }
+
+      if (!item || e.button !== 0) return;
+      if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+
+      let keysToMove = selectedFileKeys;
+      if (!selectedFileKeys.includes(item.key)) {
+        keysToMove = [item.key];
+        selectFile(item.key);
+      }
+
+      dragCandidateRef.current = {
+        x: e.clientX,
+        y: e.clientY,
+        keys: keysToMove,
+        sourcePrefix: prefix,
+      };
+    },
+    [selectedFileKeys, selectFile, prefix],
+  );
 
   const handleItemClick = useCallback(
     (e: React.MouseEvent, item: FileItem) => {
+      if (suppressClickRef.current || isDragging) {
+        suppressClickRef.current = false;
+        return;
+      }
       // Handle modifier keys for multi-selection
       if (e.metaKey || e.ctrlKey) {
         toggleFileSelection(item.key);
@@ -384,11 +667,15 @@ export function FileExplorer() {
       // Regular click - select immediately (no delay)
       selectFile(item.key);
     },
-    [toggleFileSelection, selectRange, selectFile, allKeys],
+    [toggleFileSelection, selectRange, selectFile, allKeys, isDragging],
   );
 
   const handleItemDoubleClick = useCallback(
     (item: FileItem) => {
+      if (suppressClickRef.current || isDragging) {
+        suppressClickRef.current = false;
+        return;
+      }
       if (item.isFolder) {
         navigateTo(item.key);
       } else {
@@ -397,7 +684,7 @@ export function FileExplorer() {
         setPreviewPanelOpen(true);
       }
     },
-    [navigateTo, selectFile, setPreviewPanelOpen],
+    [navigateTo, selectFile, setPreviewPanelOpen, isDragging],
   );
 
   const handleContextMenu = useCallback(
@@ -438,6 +725,157 @@ export function FileExplorer() {
     setCreateFolderDialogOpen(true);
   }, []);
 
+  // Get items under marquee selection
+  const getItemsUnderMarquee = useCallback(
+    (rect: { left: number; top: number; right: number; bottom: number }) => {
+      if (!containerRef.current) return [];
+
+      const itemElements = containerRef.current.querySelectorAll("[data-file-item]");
+      const selectedKeys: string[] = [];
+
+      itemElements.forEach((el) => {
+        const elRect = el.getBoundingClientRect();
+        const containerRect = containerRef.current!.getBoundingClientRect();
+
+        // Adjust marquee coordinates to be relative to viewport
+        const marqueeRect = {
+          left: rect.left + containerRect.left,
+          top: rect.top + containerRect.top,
+          right: rect.right + containerRect.left,
+          bottom: rect.bottom + containerRect.top,
+        };
+
+        // Check if element intersects with marquee
+        const intersects =
+          elRect.left < marqueeRect.right &&
+          elRect.right > marqueeRect.left &&
+          elRect.top < marqueeRect.bottom &&
+          elRect.bottom > marqueeRect.top;
+
+        if (intersects) {
+          // Find the corresponding item key
+          const index = Array.from(itemElements).indexOf(el);
+          if (items[index]) {
+            selectedKeys.push(items[index].key);
+          }
+        }
+      });
+
+      return selectedKeys;
+    },
+    [items],
+  );
+
+  // Marquee selection handlers
+  const handleMarqueeStart = useCallback(
+    (e: React.MouseEvent) => {
+      // Only start marquee on left click on empty area (not on items)
+      if (e.button !== 0) return;
+      const target = e.target as HTMLElement;
+      if (target.closest("[data-file-item]")) return;
+
+      // Prevent native browser text selection during marquee
+      e.preventDefault();
+
+      const container = containerRef.current;
+      if (!container) return;
+
+      const rect = container.getBoundingClientRect();
+      const x = e.clientX - rect.left + container.scrollLeft;
+      const y = e.clientY - rect.top + container.scrollTop;
+
+      setMarquee({ startX: x, startY: y, currentX: x, currentY: y });
+
+      // Clear selection unless modifier key is held
+      if (!e.metaKey && !e.ctrlKey && !e.shiftKey) {
+        clearSelection();
+      }
+    },
+    [clearSelection],
+  );
+
+  const handleMarqueeMove = useCallback(
+    (e: React.MouseEvent) => {
+      if (!marquee) return;
+
+      const container = containerRef.current;
+      if (!container) return;
+
+      const rect = container.getBoundingClientRect();
+      const x = e.clientX - rect.left + container.scrollLeft;
+      const y = e.clientY - rect.top + container.scrollTop;
+
+      setMarquee((prev) => (prev ? { ...prev, currentX: x, currentY: y } : null));
+
+      // Calculate selection rectangle
+      const selectionRect = {
+        left: Math.min(marquee.startX, x),
+        top: Math.min(marquee.startY, y),
+        right: Math.max(marquee.startX, x),
+        bottom: Math.max(marquee.startY, y),
+      };
+
+      // Get items under marquee and select them
+      const keysUnderMarquee = getItemsUnderMarquee(selectionRect);
+
+      // Update selection based on modifier keys
+      if (e.metaKey || e.ctrlKey) {
+        // Toggle: merge with existing selection
+        const merged = [...new Set([...selectedFileKeys, ...keysUnderMarquee])];
+        if (JSON.stringify(merged) !== JSON.stringify(selectedFileKeys)) {
+          selectAll(merged);
+        }
+      } else {
+        // Replace selection
+        if (JSON.stringify(keysUnderMarquee) !== JSON.stringify(selectedFileKeys)) {
+          selectAll(keysUnderMarquee);
+        }
+      }
+    },
+    [marquee, getItemsUnderMarquee, selectedFileKeys, selectAll],
+  );
+
+  const handleMarqueeEnd = useCallback(() => {
+    if (marquee) {
+      // Mark that marquee was just active to prevent click handler from clearing selection
+      wasMarqueeActiveRef.current = true;
+      // Reset the flag after a short delay (after click event fires)
+      requestAnimationFrame(() => {
+        wasMarqueeActiveRef.current = false;
+      });
+    }
+    setMarquee(null);
+  }, [marquee]);
+
+  // Add global mouse up handler for marquee
+  useEffect(() => {
+    if (!marquee) return;
+
+    const handleGlobalMouseUp = () => {
+      // Mark that marquee was just active to prevent click handler from clearing selection
+      wasMarqueeActiveRef.current = true;
+      requestAnimationFrame(() => {
+        wasMarqueeActiveRef.current = false;
+      });
+      setMarquee(null);
+    };
+
+    window.addEventListener("mouseup", handleGlobalMouseUp);
+    return () => window.removeEventListener("mouseup", handleGlobalMouseUp);
+  }, [marquee]);
+
+  // Calculate marquee rectangle style
+  const marqueeStyle = useMemo(() => {
+    if (!marquee) return null;
+
+    const left = Math.min(marquee.startX, marquee.currentX);
+    const top = Math.min(marquee.startY, marquee.currentY);
+    const width = Math.abs(marquee.currentX - marquee.startX);
+    const height = Math.abs(marquee.currentY - marquee.startY);
+
+    return { left, top, width, height };
+  }, [marquee]);
+
   const handleCreateFolder = useCallback(
     (folderName: string) => {
       if (!selectedAccountId || !selectedBucket) {
@@ -457,7 +895,9 @@ export function FileExplorer() {
             toast.success(`Created folder "${folderName}"`);
           },
           onError: (error) => {
-            toast.error(`Failed to create folder: ${error.message}`);
+            toast.error("Failed to create folder", {
+              description: parseS3Error(error),
+            });
           },
         },
       );
@@ -468,6 +908,15 @@ export function FileExplorer() {
   // Clear selection when clicking on empty area (not on items)
   const handleContainerClick = useCallback(
     (e: React.MouseEvent) => {
+      // Don't clear selection if marquee was just active (mouseup after drag)
+      if (wasMarqueeActiveRef.current) {
+        return;
+      }
+      if (suppressClickRef.current) {
+        suppressClickRef.current = false;
+        return;
+      }
+
       // Check if the click target is inside a file item (marked with data-file-item)
       const target = e.target as HTMLElement;
       const isClickOnItem = target.closest("[data-file-item]");
@@ -506,7 +955,9 @@ export function FileExplorer() {
           }
         },
         onError: (error) => {
-          toast.error(`Failed to delete: ${error.message}`);
+          toast.error("Failed to delete", {
+            description: parseS3Error(error),
+          });
         },
       },
     );
@@ -544,7 +995,9 @@ export function FileExplorer() {
             );
           },
           onError: (error) => {
-            toast.error(`Failed to rename: ${error.message}`);
+            toast.error("Failed to rename", {
+              description: parseS3Error(error),
+            });
           },
         },
       );
@@ -608,8 +1061,9 @@ export function FileExplorer() {
             }
           },
           onError: (error) => {
-            toast.error(`Failed to ${deleteSource ? "move" : "copy"}: ${error.message}`, {
+            toast.error(`Failed to ${deleteSource ? "move" : "copy"}`, {
               id: toastId,
+              description: parseS3Error(error),
             });
           },
         },
@@ -643,8 +1097,9 @@ export function FileExplorer() {
             }
           },
           onError: (error) => {
-            toast.error(`Failed to ${deleteSource ? "move" : "copy"}: ${error.message}`, {
+            toast.error(`Failed to ${deleteSource ? "move" : "copy"}`, {
               id: toastId,
+              description: parseS3Error(error),
             });
           },
         },
@@ -975,10 +1430,14 @@ export function FileExplorer() {
   if (viewMode === "grid") {
     return (
       <>
-        <ScrollArea
-          className="h-full"
+        <div
+          ref={containerRef}
+          className={cn("h-full relative overflow-auto", marquee && "select-none")}
           onClick={handleContainerClick}
           onContextMenu={handleEmptyAreaContextMenu}
+          onMouseDown={handleMarqueeStart}
+          onMouseMove={handleMarqueeMove}
+          onMouseUp={handleMarqueeEnd}
         >
           <div
             className="p-4 grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4"
@@ -988,24 +1447,35 @@ export function FileExplorer() {
               const Icon = getFileIcon(item.name, item.isFolder);
               const isSelected = selectedFileKeys.includes(item.key);
               const showThumbnail = !item.isFolder && isImageFile(item.name);
+              const isDropTarget = item.isFolder && dropTargetKey === item.key;
 
               return (
                 <button
                   key={item.key}
                   type="button"
                   data-file-item
+                  data-item-key={item.key}
+                  data-is-folder={item.isFolder}
+                  draggable={false}
                   className={cn(
                     "flex flex-col items-center p-2 rounded-xl cursor-pointer group text-left select-none",
                     "focus:outline-none focus:ring-2 focus:ring-primary/20",
                     isSelected ? "bg-accent ring-2 ring-primary/30" : "hover:bg-accent/50",
+                    isDropTarget && "ring-2 ring-primary bg-primary/10",
                   )}
-                  onMouseDown={handleMouseDown}
+                  onMouseDown={(e) => handleMouseDown(e, item)}
                   onClick={(e) => handleItemClick(e, item)}
                   onDoubleClick={() => handleItemDoubleClick(item)}
                   onContextMenu={(e) => handleContextMenu(e, item)}
+                  onDragStart={(e) => e.preventDefault()}
                 >
                   {item.isFolder ? (
-                    <div className="w-full aspect-square flex items-center justify-center bg-primary/10 rounded-lg mb-2">
+                    <div
+                      className={cn(
+                        "w-full aspect-square flex items-center justify-center bg-primary/10 rounded-lg mb-2",
+                        isDropTarget && "bg-primary/20",
+                      )}
+                    >
                       <Folder className="h-12 w-12 text-primary" strokeWidth={1.5} />
                     </div>
                   ) : showThumbnail ? (
@@ -1042,7 +1512,19 @@ export function FileExplorer() {
               </Button>
             </div>
           )}
-        </ScrollArea>
+          {/* Marquee selection rectangle */}
+          {marqueeStyle && (
+            <div
+              className="absolute pointer-events-none border border-primary bg-primary/10 z-50"
+              style={{
+                left: marqueeStyle.left,
+                top: marqueeStyle.top,
+                width: marqueeStyle.width,
+                height: marqueeStyle.height,
+              }}
+            />
+          )}
+        </div>
         {contextMenu && (
           <FileContextMenu
             x={contextMenu.x}
@@ -1109,10 +1591,14 @@ export function FileExplorer() {
   // List view
   return (
     <>
-      <ScrollArea
-        className="h-full"
+      <div
+        ref={containerRef}
+        className={cn("h-full relative overflow-auto", marquee && "select-none")}
         onClick={handleContainerClick}
         onContextMenu={handleEmptyAreaContextMenu}
+        onMouseDown={handleMarqueeStart}
+        onMouseMove={handleMarqueeMove}
+        onMouseUp={handleMarqueeEnd}
       >
         <table className="w-full text-sm">
           <thead className="sticky top-0 bg-background/95 backdrop-blur-sm border-b z-10">
@@ -1168,18 +1654,24 @@ export function FileExplorer() {
             {items.map((item) => {
               const Icon = getFileIcon(item.name, item.isFolder);
               const isSelected = selectedFileKeys.includes(item.key);
+              const isDropTarget = item.isFolder && dropTargetKey === item.key;
               return (
                 <tr
                   key={item.key}
                   data-file-item
+                  data-item-key={item.key}
+                  data-is-folder={item.isFolder}
+                  draggable={false}
                   className={cn(
                     "cursor-pointer group select-none",
                     isSelected ? "bg-accent" : "hover:bg-accent/50",
+                    isDropTarget && "bg-primary/10 outline outline-2 outline-primary",
                   )}
-                  onMouseDown={handleMouseDown}
+                  onMouseDown={(e) => handleMouseDown(e, item)}
                   onClick={(e) => handleItemClick(e, item)}
                   onDoubleClick={() => handleItemDoubleClick(item)}
                   onContextMenu={(e) => handleContextMenu(e, item)}
+                  onDragStart={(e) => e.preventDefault()}
                 >
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-3">
@@ -1187,6 +1679,7 @@ export function FileExplorer() {
                         className={cn(
                           "rounded p-1 transition-colors",
                           item.isFolder ? "bg-primary/10 text-primary" : "text-muted-foreground",
+                          isDropTarget && "bg-primary/20",
                         )}
                       >
                         <Icon className="h-4 w-4" strokeWidth={1.5} />
@@ -1221,7 +1714,19 @@ export function FileExplorer() {
             </Button>
           </div>
         )}
-      </ScrollArea>
+        {/* Marquee selection rectangle */}
+        {marqueeStyle && (
+          <div
+            className="absolute pointer-events-none border border-primary bg-primary/10 z-50"
+            style={{
+              left: marqueeStyle.left,
+              top: marqueeStyle.top,
+              width: marqueeStyle.width,
+              height: marqueeStyle.height,
+            }}
+          />
+        )}
+      </div>
       {contextMenu && (
         <FileContextMenu
           x={contextMenu.x}

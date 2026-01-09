@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { ClipboardState } from "./types";
+import type { ClipboardState, DragState } from "./types";
 
 export type ViewMode = "grid" | "list";
 export type SortBy = "name" | "size" | "modified";
@@ -16,6 +16,9 @@ interface BrowserState {
 
   // Clipboard state for copy/cut operations
   clipboard: ClipboardState | null;
+
+  // Internal drag state for moving items within the bucket
+  dragState: DragState | null;
 
   // Search state
   searchQuery: string;
@@ -74,6 +77,10 @@ interface BrowserState {
   copyToClipboard: (keys: string[], bucket: string, accountId: string) => void;
   cutToClipboard: (keys: string[], bucket: string, accountId: string) => void;
   clearClipboard: () => void;
+
+  // Drag actions
+  setDragState: (keys: string[], sourcePrefix: string) => void;
+  clearDragState: () => void;
 }
 
 export const useBrowserStore = create<BrowserState>()(
@@ -86,6 +93,7 @@ export const useBrowserStore = create<BrowserState>()(
       selectedFileKeys: [],
       lastSelectedKey: null,
       clipboard: null,
+      dragState: null,
       searchQuery: "",
       searchRecursive: true,
       filterMinSize: null,
@@ -96,7 +104,7 @@ export const useBrowserStore = create<BrowserState>()(
       sortDirection: "asc",
       viewMode: "list",
       sidebarWidth: 240,
-      previewPanelOpen: true,
+      previewPanelOpen: false,
 
       // Actions
       setAccount: (id) =>
@@ -290,6 +298,10 @@ export const useBrowserStore = create<BrowserState>()(
         set({ clipboard: { keys, bucket, accountId, operation: "cut" } }),
 
       clearClipboard: () => set({ clipboard: null }),
+
+      // Drag actions
+      setDragState: (keys, sourcePrefix) => set({ dragState: { keys, sourcePrefix } }),
+      clearDragState: () => set({ dragState: null }),
     }),
     {
       name: "bucketscout-storage",
@@ -322,6 +334,9 @@ export const useSearchRecursive = () => useBrowserStore((state) => state.searchR
 
 // Clipboard selector
 export const useClipboard = () => useBrowserStore((state) => state.clipboard);
+
+// Drag state selector
+export const useDragState = () => useBrowserStore((state) => state.dragState);
 
 // Sort selectors
 export const useSortBy = () => useBrowserStore((state) => state.sortBy);

@@ -8,11 +8,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { useBrowserStore, useDragState } from "@/lib/store";
 
 interface ResponsiveBreadcrumbProps {
   bucket: string | null;
   path: string[];
   onNavigate: (index: number) => void;
+  onDrop?: (targetPrefix: string, keys: string[]) => void;
 }
 
 // Minimum width for each visible segment (approx characters * avg char width + padding)
@@ -24,9 +26,21 @@ const ELLIPSIS_WIDTH = 50;
 // Width of chevron separator
 const CHEVRON_WIDTH = 20;
 
-export function ResponsiveBreadcrumb({ bucket, path, onNavigate }: ResponsiveBreadcrumbProps) {
+// Custom drag data type marker for internal drags
+const INTERNAL_DRAG_TYPE = "application/x-bucketscout-items";
+
+export function ResponsiveBreadcrumb({
+  bucket,
+  path,
+  onNavigate,
+  onDrop,
+}: ResponsiveBreadcrumbProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [maxVisibleSegments, setMaxVisibleSegments] = useState(10);
+  const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
+
+  // Get drag state from store (for Tauri compatibility)
+  const dragState = useDragState();
 
   // Calculate how many segments we can show based on available width
   const calculateVisibleSegments = useCallback(() => {
@@ -82,6 +96,99 @@ export function ResponsiveBreadcrumb({ bucket, path, onNavigate }: ResponsiveBre
     calculateVisibleSegments();
   }, [path, bucket, calculateVisibleSegments]);
 
+  // Get prefix for a segment index (-1 = root, 0 = first folder, etc.)
+  const getPrefixForIndex = useCallback(
+    (index: number): string => {
+      if (index < 0) return ""; // Root
+      return path.slice(0, index + 1).join("/") + "/";
+    },
+    [path],
+  );
+
+  // Drag enter handler
+  const handleDragEnter = useCallback(
+    (e: React.DragEvent, segmentIndex: number) => {
+      if (!onDrop) return;
+
+      // Check for internal drag via dataTransfer or store state
+      const isInternalDrag =
+        e.dataTransfer.types.includes(INTERNAL_DRAG_TYPE) ||
+        dragState !== null ||
+        useBrowserStore.getState().dragState !== null;
+      if (!isInternalDrag) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      setDropTargetIndex(segmentIndex);
+    },
+    [onDrop, dragState],
+  );
+
+  // Drag over handler
+  const handleDragOver = useCallback(
+    (e: React.DragEvent, segmentIndex: number) => {
+      if (!onDrop) return;
+
+      // Check for internal drag via dataTransfer or store state
+      const isInternalDrag =
+        e.dataTransfer.types.includes(INTERNAL_DRAG_TYPE) ||
+        dragState !== null ||
+        useBrowserStore.getState().dragState !== null;
+      if (!isInternalDrag) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = "move";
+      setDropTargetIndex(segmentIndex);
+    },
+    [onDrop, dragState],
+  );
+
+  // Drag leave handler
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Only clear if we're actually leaving the element (not entering a child)
+    const relatedTarget = e.relatedTarget as HTMLElement | null;
+    const currentTarget = e.currentTarget as HTMLElement;
+    if (relatedTarget && currentTarget.contains(relatedTarget)) {
+      return;
+    }
+
+    setDropTargetIndex(null);
+  }, []);
+
+  // Drop handler
+  const handleDrop = useCallback(
+    (e: React.DragEvent, segmentIndex: number) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setDropTargetIndex(null);
+
+      if (!onDrop) return;
+
+      // Get keys from dataTransfer or fall back to store state
+      const data = e.dataTransfer.getData(INTERNAL_DRAG_TYPE);
+      let keys: string[] | null = null;
+
+      if (data) {
+        keys = JSON.parse(data);
+      } else {
+        const currentDragState = useBrowserStore.getState().dragState ?? dragState;
+        if (currentDragState) {
+          keys = currentDragState.keys;
+        }
+      }
+
+      if (!keys || keys.length === 0) return;
+
+      const targetPrefix = getPrefixForIndex(segmentIndex);
+      onDrop(targetPrefix, keys);
+    },
+    [onDrop, getPrefixForIndex, dragState],
+  );
+
   // Build the segments array: bucket + path folders
   const allSegments = [
     ...(bucket ? [{ name: bucket, index: -1, isBucket: true }] : []),
@@ -117,13 +224,21 @@ export function ResponsiveBreadcrumb({ bucket, path, onNavigate }: ResponsiveBre
       ref={containerRef}
       className="flex items-center gap-0.5 text-sm min-w-0 flex-1 overflow-hidden"
     >
-      {/* Home button */}
+      {/* Home button - drop target for root */}
       <Button
         variant="ghost"
         size="sm"
-        className="h-7 px-2 text-muted-foreground hover:text-foreground shrink-0"
+        className={cn(
+          "h-7 px-2 text-muted-foreground hover:text-foreground shrink-0",
+          dropTargetIndex === -1 && "bg-primary/10 ring-2 ring-primary",
+        )}
         onClick={() => onNavigate(-1)}
         disabled={!bucket}
+        data-drop-prefix=""
+        onDragEnter={(e) => handleDragEnter(e, -1)}
+        onDragOver={(e) => handleDragOver(e, -1)}
+        onDragLeave={handleDragLeave}
+        onDrop={(e) => handleDrop(e, -1)}
       >
         <Home className="h-3.5 w-3.5" />
       </Button>
@@ -163,6 +278,7 @@ export function ResponsiveBreadcrumb({ bucket, path, onNavigate }: ResponsiveBre
       {visibleSegments.map((segment, idx) => {
         const isLast = idx === visibleSegments.length - 1;
         const isFirst = idx === 0 && collapsedSegments.length === 0;
+        const isDropTarget = dropTargetIndex === segment.index;
 
         return (
           <div
@@ -183,8 +299,14 @@ export function ResponsiveBreadcrumb({ bucket, path, onNavigate }: ResponsiveBre
                 isLast
                   ? "font-medium text-foreground"
                   : "text-muted-foreground hover:text-foreground",
+                isDropTarget && "bg-primary/10 ring-2 ring-primary",
               )}
               onClick={() => onNavigate(segment.index)}
+              data-drop-prefix={getPrefixForIndex(segment.index)}
+              onDragEnter={(e) => handleDragEnter(e, segment.index)}
+              onDragOver={(e) => handleDragOver(e, segment.index)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, segment.index)}
             >
               <span className="truncate max-w-[120px]">{segment.name}</span>
             </Button>

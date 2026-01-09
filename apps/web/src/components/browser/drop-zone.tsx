@@ -9,12 +9,16 @@ interface DropZoneProps {
   className?: string;
 }
 
+// Custom drag data type marker for internal drags
+const INTERNAL_DRAG_TYPE = "application/x-bucketscout-items";
+
 export function DropZone({ children, className }: DropZoneProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [inTauri, setInTauri] = useState(false);
   const dragCountRef = useRef(0);
   const { queueFiles, queueFilePaths } = useUploadManager();
   const selectedBucket = useBrowserStore((s) => s.selectedBucket);
+  const dragState = useBrowserStore((s) => s.dragState);
 
   const disabled = !selectedBucket;
   // Use ref to avoid stale closure in event handler
@@ -23,6 +27,12 @@ export function DropZone({ children, className }: DropZoneProps) {
 
   const queueFilePathsRef = useRef(queueFilePaths);
   queueFilePathsRef.current = queueFilePaths;
+
+  const isInternalDrag = useCallback((dataTransfer: DataTransfer | null) => {
+    if (!dataTransfer) return false;
+    if (dataTransfer.types.includes(INTERNAL_DRAG_TYPE)) return true;
+    return useBrowserStore.getState().dragState !== null;
+  }, []);
 
   // Set up Tauri native drag and drop listener
   useEffect(() => {
@@ -56,6 +66,15 @@ export function DropZone({ children, className }: DropZoneProps) {
 
           if (disabledRef.current) {
             console.log("[drop-zone] Disabled, ignoring event");
+            return;
+          }
+
+          // Skip if there's an internal drag happening (dragging files within the bucket)
+          // Use getState() to get current state synchronously, avoiding React re-render timing issues
+          const currentDragState = useBrowserStore.getState().dragState;
+          console.log("[drop-zone] Checking drag state:", currentDragState);
+          if (currentDragState) {
+            console.log("[drop-zone] Internal drag active, ignoring Tauri drag event");
             return;
           }
 
@@ -96,7 +115,15 @@ export function DropZone({ children, className }: DropZoneProps) {
   // Web-based drag and drop handlers (fallback for non-Tauri)
   const handleDragEnter = useCallback(
     (e: React.DragEvent) => {
+      console.log("[drop-zone] Web dragEnter:", {
+        inTauri,
+        types: Array.from(e.dataTransfer.types),
+        hasInternalType: e.dataTransfer.types.includes(INTERNAL_DRAG_TYPE),
+        target: (e.target as HTMLElement)?.tagName,
+      });
       if (inTauri) return; // Skip web handlers in Tauri
+      // Skip internal drags - they're handled by file-explorer
+      if (isInternalDrag(e.dataTransfer)) return;
       e.preventDefault();
       e.stopPropagation();
       dragCountRef.current++;
@@ -104,12 +131,14 @@ export function DropZone({ children, className }: DropZoneProps) {
         setIsDragOver(true);
       }
     },
-    [inTauri],
+    [inTauri, isInternalDrag],
   );
 
   const handleDragLeave = useCallback(
     (e: React.DragEvent) => {
       if (inTauri) return;
+      // Skip internal drags
+      if (isInternalDrag(e.dataTransfer)) return;
       e.preventDefault();
       e.stopPropagation();
       dragCountRef.current--;
@@ -117,21 +146,25 @@ export function DropZone({ children, className }: DropZoneProps) {
         setIsDragOver(false);
       }
     },
-    [inTauri],
+    [inTauri, isInternalDrag],
   );
 
   const handleDragOver = useCallback(
     (e: React.DragEvent) => {
       if (inTauri) return;
+      // Skip internal drags
+      if (isInternalDrag(e.dataTransfer)) return;
       e.preventDefault();
       e.stopPropagation();
     },
-    [inTauri],
+    [inTauri, isInternalDrag],
   );
 
   const handleDrop = useCallback(
     async (e: React.DragEvent) => {
       if (inTauri) return; // Tauri handles drops natively
+      // Skip internal drags - they're handled by file-explorer
+      if (isInternalDrag(e.dataTransfer)) return;
       e.preventDefault();
       e.stopPropagation();
       dragCountRef.current = 0;
@@ -165,7 +198,7 @@ export function DropZone({ children, className }: DropZoneProps) {
         queueFiles(e.dataTransfer.files);
       }
     },
-    [inTauri, disabled, queueFiles],
+    [inTauri, disabled, queueFiles, isInternalDrag],
   );
 
   return (
@@ -179,7 +212,7 @@ export function DropZone({ children, className }: DropZoneProps) {
       {children}
 
       {/* Drop overlay */}
-      {isDragOver && !disabled && (
+      {isDragOver && !disabled && !dragState && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-primary/10 backdrop-blur-sm border-2 border-dashed border-primary rounded-lg">
           <div className="flex flex-col items-center gap-3 text-primary">
             <div className="p-4 bg-primary/10 rounded-full">

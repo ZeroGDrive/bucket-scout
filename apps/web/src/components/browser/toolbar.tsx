@@ -19,8 +19,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useBrowserStore, useCurrentPath } from "@/lib/store";
 import { useQueryClient } from "@tanstack/react-query";
-import { queryKeys, useObjects, useDeleteObjects, useCreateFolder } from "@/lib/queries";
-import { cn } from "@/lib/utils";
+import {
+  queryKeys,
+  useObjects,
+  useDeleteObjects,
+  useCreateFolder,
+  useCopyMoveObjects,
+} from "@/lib/queries";
+import { cn, parseS3Error } from "@/lib/utils";
 import { UploadButton } from "./upload-button";
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog";
 import { CreateFolderDialog } from "./create-folder-dialog";
@@ -44,6 +50,7 @@ export function Toolbar() {
   const navigateToRoot = useBrowserStore((s) => s.navigateToRoot);
   const toggleViewMode = useBrowserStore((s) => s.toggleViewMode);
   const clearSelection = useBrowserStore((s) => s.clearSelection);
+  const clearDragState = useBrowserStore((s) => s.clearDragState);
 
   const prefix = currentPath.length > 0 ? currentPath.join("/") + "/" : "";
   // Use isRefetching instead of isFetching to avoid spinner during initial load
@@ -52,6 +59,7 @@ export function Toolbar() {
   const { data, isRefetching } = useObjects(selectedAccountId, selectedBucket, prefix);
   const deleteObjects = useDeleteObjects();
   const createFolder = useCreateFolder();
+  const copyMoveObjects = useCopyMoveObjects();
   const { queueDownloads, queueFolderDownload } = useDownloadManager();
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -107,6 +115,57 @@ export function Toolbar() {
     }
   };
 
+  // Handle drop on breadcrumb segments
+  const handleBreadcrumbDrop = useCallback(
+    (targetPrefix: string, keys: string[]) => {
+      if (!selectedAccountId || !selectedBucket || keys.length === 0) {
+        clearDragState();
+        return;
+      }
+
+      // Don't move to current location
+      if (targetPrefix === prefix) {
+        clearDragState();
+        return;
+      }
+
+      const toastId = toast.loading(`Moving ${keys.length} item${keys.length > 1 ? "s" : ""}...`);
+
+      copyMoveObjects.mutate(
+        {
+          accountId: selectedAccountId,
+          bucket: selectedBucket,
+          sourceKeys: keys,
+          destinationPrefix: targetPrefix,
+          deleteSource: true,
+        },
+        {
+          onSuccess: (result) => {
+            clearSelection();
+            if (result.errors.length > 0) {
+              toast.error(
+                `Moved ${result.objectsCopied} item(s), but ${result.errors.length} failed`,
+                {
+                  id: toastId,
+                },
+              );
+            } else {
+              toast.success(`Moved ${result.objectsCopied} item(s)`, { id: toastId });
+            }
+          },
+          onError: (error) => {
+            toast.error("Failed to move items", {
+              id: toastId,
+              description: parseS3Error(error),
+            });
+          },
+        },
+      );
+      clearDragState();
+    },
+    [selectedAccountId, selectedBucket, prefix, copyMoveObjects, clearSelection, clearDragState],
+  );
+
   const handleDeleteRequest = useCallback(() => {
     setDeleteDialogOpen(true);
   }, []);
@@ -135,7 +194,9 @@ export function Toolbar() {
           }
         },
         onError: (error) => {
-          toast.error(`Failed to delete: ${error.message}`);
+          toast.error("Failed to delete", {
+            description: parseS3Error(error),
+          });
         },
       },
     );
@@ -160,7 +221,9 @@ export function Toolbar() {
             toast.success(`Created folder "${folderName}"`);
           },
           onError: (error) => {
-            toast.error(`Failed to create folder: ${error.message}`);
+            toast.error("Failed to create folder", {
+              description: parseS3Error(error),
+            });
           },
         },
       );
@@ -179,6 +242,7 @@ export function Toolbar() {
           bucket={selectedBucket}
           path={currentPath}
           onNavigate={handleBreadcrumbClick}
+          onDrop={handleBreadcrumbDrop}
         />
       </div>
 
@@ -191,7 +255,7 @@ export function Toolbar() {
         {/* Selection indicator and actions menu */}
         {hasSelection && (
           <>
-            <span className="text-xs text-muted-foreground px-2">
+            <span className="text-xs text-muted-foreground px-2 tabular-nums">
               {selectedFileKeys.length} selected
             </span>
             <DropdownMenu>

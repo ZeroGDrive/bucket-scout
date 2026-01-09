@@ -104,10 +104,7 @@ export function CreateBucketDialog({ open, onOpenChange, accountId }: CreateBuck
               <Select
                 value={location || "auto"}
                 onValueChange={(val) => setLocation(val === "auto" ? "" : val || "")}
-                items={[
-                  { value: "auto", label: "Automatic (recommended)" },
-                  ...R2_LOCATIONS,
-                ]}
+                items={[{ value: "auto", label: "Automatic (recommended)" }, ...R2_LOCATIONS]}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue />

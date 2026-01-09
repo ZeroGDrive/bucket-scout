@@ -173,6 +173,12 @@ export interface ClipboardState {
   operation: "copy" | "cut";
 }
 
+// Internal drag state for moving items within the bucket
+export interface DragState {
+  keys: string[];
+  sourcePrefix: string;
+}
+
 export interface PreviewData {
   contentType: string;
   size: number;

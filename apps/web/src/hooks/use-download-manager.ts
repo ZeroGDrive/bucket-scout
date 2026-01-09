@@ -11,6 +11,7 @@ import type {
   DownloadFailedPayload,
 } from "@/lib/types";
 import { toast } from "sonner";
+import { parseS3Error } from "@/lib/utils";
 
 export function useDownloadManager() {
   const processingRef = useRef(false);
@@ -205,7 +206,9 @@ export function useDownloadManager() {
       } catch (error) {
         console.error("[download] Folder download error:", error);
         setStatus(downloadId, "failed", String(error));
-        toast.error(`Failed to download folder: ${error}`);
+        toast.error("Failed to download folder", {
+          description: parseS3Error(error),
+        });
       }
     },
     [selectedAccountId, selectedBucket, addDownloads, setStatus],
