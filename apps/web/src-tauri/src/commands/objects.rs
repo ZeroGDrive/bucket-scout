@@ -968,6 +968,8 @@ pub async fn search_objects(
     query: String,
     max_results: Option<u32>,
 ) -> Result<Vec<S3Object>, AppError> {
+    use std::collections::HashSet;
+
     if query.is_empty() {
         return Ok(Vec::new());
     }
@@ -988,7 +990,9 @@ pub async fn search_objects(
 
     let max = max_results.unwrap_or(100) as usize;
     let query_lower = query.to_lowercase();
-    let mut results: Vec<S3Object> = Vec::new();
+    let mut file_results: Vec<S3Object> = Vec::new();
+    let mut folder_results: Vec<S3Object> = Vec::new();
+    let mut seen_folders: HashSet<String> = HashSet::new();
     let mut continuation_token: Option<String> = None;
 
     // List all objects recursively (no delimiter) and filter by query
@@ -1007,22 +1011,59 @@ pub async fn search_objects(
 
         for obj in response.contents() {
             if let Some(key) = obj.key() {
-                // Get the file name from the key
+                // Extract all parent folder paths from this key and check for matches
+                // e.g., "a/b/c/file.txt" -> check folders "a/", "a/b/", "a/b/c/"
+                let key_without_prefix = if !prefix.is_empty() && key.starts_with(&prefix) {
+                    &key[prefix.len()..]
+                } else {
+                    key
+                };
+
+                let parts: Vec<&str> = key_without_prefix.split('/').collect();
+                let mut folder_path = prefix.clone();
+
+                // Check each folder segment (except the last part which is the file name)
+                for (i, part) in parts.iter().enumerate() {
+                    if i < parts.len() - 1 && !part.is_empty() {
+                        folder_path.push_str(part);
+                        folder_path.push('/');
+
+                        // Check if this folder name matches the query
+                        if part.to_lowercase().contains(&query_lower) {
+                            if !seen_folders.contains(&folder_path) {
+                                seen_folders.insert(folder_path.clone());
+                                folder_results.push(S3Object {
+                                    key: folder_path.clone(),
+                                    size: 0,
+                                    last_modified: None,
+                                    etag: None,
+                                    is_folder: true,
+                                });
+                            }
+                        }
+                    }
+                }
+
+                // Get the file name from the key and check for match
                 let name = key.rsplit('/').next().unwrap_or(key);
 
-                // Case-insensitive search
+                // Case-insensitive search for files
                 if name.to_lowercase().contains(&query_lower) {
-                    results.push(S3Object {
+                    file_results.push(S3Object {
                         key: key.to_string(),
                         size: obj.size().unwrap_or(0),
                         last_modified: obj.last_modified().map(|d| d.to_string()),
                         etag: obj.e_tag().map(|e| e.trim_matches('"').to_string()),
                         is_folder: key.ends_with('/'),
                     });
+                }
 
-                    if results.len() >= max {
-                        return Ok(results);
-                    }
+                // Check if we have enough results
+                if file_results.len() + folder_results.len() >= max {
+                    // Combine folders first, then files
+                    folder_results.extend(file_results);
+                    folder_results.truncate(max);
+                    return Ok(folder_results);
                 }
             }
         }
@@ -1034,7 +1075,9 @@ pub async fn search_objects(
         }
     }
 
-    Ok(results)
+    // Combine results: folders first, then files
+    folder_results.extend(file_results);
+    Ok(folder_results)
 }
 
 // Presigned URL types
