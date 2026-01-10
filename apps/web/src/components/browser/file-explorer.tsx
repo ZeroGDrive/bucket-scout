@@ -473,32 +473,29 @@ export function FileExplorer() {
     dragPreviewRef.current.style.top = `${y + 12}px`;
   }, []);
 
-  const getDropTargetAtPoint = useCallback(
-    (x: number, y: number, keysToMove: string[]) => {
-      const el = document.elementFromPoint(x, y) as HTMLElement | null;
-      if (!el) return null;
+  const getDropTargetAtPoint = useCallback((x: number, y: number, keysToMove: string[]) => {
+    const el = document.elementFromPoint(x, y) as HTMLElement | null;
+    if (!el) return null;
 
-      const itemEl = el.closest("[data-file-item]") as HTMLElement | null;
-      if (itemEl) {
-        const isFolder = itemEl.getAttribute("data-is-folder") === "true";
-        const key = itemEl.getAttribute("data-item-key");
-        if (isFolder && key && !keysToMove.includes(key)) {
-          return { type: "folder" as const, key };
-        }
+    const itemEl = el.closest("[data-file-item]") as HTMLElement | null;
+    if (itemEl) {
+      const isFolder = itemEl.getAttribute("data-is-folder") === "true";
+      const key = itemEl.getAttribute("data-item-key");
+      if (isFolder && key && !keysToMove.includes(key)) {
+        return { type: "folder" as const, key };
       }
+    }
 
-      const breadcrumbEl = el.closest("[data-drop-prefix]") as HTMLElement | null;
-      if (breadcrumbEl) {
-        const prefixAttr = breadcrumbEl.getAttribute("data-drop-prefix");
-        if (prefixAttr !== null) {
-          return { type: "breadcrumb" as const, prefix: prefixAttr };
-        }
+    const breadcrumbEl = el.closest("[data-drop-prefix]") as HTMLElement | null;
+    if (breadcrumbEl) {
+      const prefixAttr = breadcrumbEl.getAttribute("data-drop-prefix");
+      if (prefixAttr !== null) {
+        return { type: "breadcrumb" as const, prefix: prefixAttr };
       }
+    }
 
-      return null;
-    },
-    [],
-  );
+    return null;
+  }, []);
 
   const cleanupDrag = useCallback(() => {
     dragActiveRef.current = false;
