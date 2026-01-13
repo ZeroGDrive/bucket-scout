@@ -236,10 +236,16 @@ export function AppSidebar() {
                           className={`text-[9px] font-medium px-1.5 py-0.5 rounded shrink-0 group-data-[collapsible=icon]:hidden ${
                             account.providerType === "cloudflare_r2"
                               ? "bg-orange-500/15 text-orange-600 dark:text-orange-400"
-                              : "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                              : account.providerType === "backblaze_b2"
+                                ? "bg-red-500/15 text-red-600 dark:text-red-400"
+                                : "bg-amber-500/15 text-amber-600 dark:text-amber-400"
                           }`}
                         >
-                          {account.providerType === "cloudflare_r2" ? "R2" : "S3"}
+                          {account.providerType === "cloudflare_r2"
+                            ? "R2"
+                            : account.providerType === "backblaze_b2"
+                              ? "B2"
+                              : "S3"}
                         </span>
                       </SidebarMenuButton>
                       <DropdownMenu>

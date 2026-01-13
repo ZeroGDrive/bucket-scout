@@ -136,7 +136,7 @@ export function TagsEditorDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
 
-        <div className="py-2">
+        <div className="py-2 mb-2">
           {isLoading ? (
             <div className="space-y-3">
               {[1, 2, 3].map((i) => (
@@ -199,7 +199,7 @@ export function TagsEditorDialog({
           )}
         </div>
 
-        <AlertDialogFooter>
+        <AlertDialogFooter className="mt-4 pt-4 border-t">
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <Button
             onClick={handleSave}

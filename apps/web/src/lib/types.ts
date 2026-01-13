@@ -1,4 +1,4 @@
-export type ProviderType = "cloudflare_r2" | "aws_s3";
+export type ProviderType = "cloudflare_r2" | "aws_s3" | "backblaze_b2";
 
 export interface Account {
   id: string;
@@ -31,6 +31,11 @@ export const PROVIDERS: ProviderConfig[] = [
     label: "Amazon S3",
     description: "Amazon Web Services S3",
   },
+  {
+    value: "backblaze_b2",
+    label: "Backblaze B2",
+    description: "S3-compatible storage with 10GB free tier",
+  },
 ];
 
 // R2 location hints for bucket creation
@@ -60,6 +65,13 @@ export const AWS_REGIONS = [
   { value: "ap-south-1", label: "Asia Pacific (Mumbai)" },
   { value: "sa-east-1", label: "South America (São Paulo)" },
   { value: "ca-central-1", label: "Canada (Central)" },
+] as const;
+
+// Backblaze B2 regions
+export const B2_REGIONS = [
+  { value: "us-west-004", label: "US West" },
+  { value: "us-west-002", label: "US West (Legacy)" },
+  { value: "eu-central-003", label: "EU Central" },
 ] as const;
 
 export interface Bucket {

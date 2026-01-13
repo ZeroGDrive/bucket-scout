@@ -148,6 +148,10 @@ pub async fn create_bucket(
             // R2 will use automatic location if not specified
             // For now, location hint would need to be set via Cloudflare API
         }
+        ProviderType::BackblazeB2 => {
+            // B2 buckets are created in the region specified by the endpoint
+            // No additional configuration needed
+        }
     }
 
     request.send().await?;
