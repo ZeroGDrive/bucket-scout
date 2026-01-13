@@ -12,8 +12,8 @@ import {
 import { useAddAccount } from "@/lib/queries";
 import { toast } from "sonner";
 import { parseS3Error } from "@/lib/utils";
-import { Loader2, Cloud, Server } from "lucide-react";
-import { PROVIDERS, AWS_REGIONS, type ProviderType } from "@/lib/types";
+import { Loader2, Cloud, Server, HardDrive } from "lucide-react";
+import { PROVIDERS, AWS_REGIONS, B2_REGIONS, type ProviderType } from "@/lib/types";
 
 interface AddAccountDialogProps {
   open: boolean;
@@ -25,6 +25,7 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
   const [name, setName] = useState("");
   const [cloudflareAccountId, setCloudflareAccountId] = useState("");
   const [region, setRegion] = useState("us-east-1");
+  const [b2Region, setB2Region] = useState("us-west-004");
   const [accessKeyId, setAccessKeyId] = useState("");
   const [secretAccessKey, setSecretAccessKey] = useState("");
 
@@ -35,6 +36,7 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
     setName("");
     setCloudflareAccountId("");
     setRegion("us-east-1");
+    setB2Region("us-west-004");
     setAccessKeyId("");
     setSecretAccessKey("");
   };
@@ -59,11 +61,18 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
       return;
     }
 
+    if (providerType === "backblaze_b2" && !b2Region) {
+      toast.error("Region is required for Backblaze B2");
+      return;
+    }
+
     try {
       // Build endpoint based on provider
       let endpoint = "";
       if (providerType === "cloudflare_r2") {
         endpoint = `https://${cloudflareAccountId}.r2.cloudflarestorage.com`;
+      } else if (providerType === "backblaze_b2") {
+        endpoint = `https://s3.${b2Region}.backblazeb2.com`;
       }
       // AWS S3 uses default endpoint (empty string means SDK defaults)
 
@@ -74,7 +83,12 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
         secretAccessKey,
         providerType,
         cloudflareAccountId: providerType === "cloudflare_r2" ? cloudflareAccountId : undefined,
-        region: providerType === "aws_s3" ? region : undefined,
+        region:
+          providerType === "aws_s3"
+            ? region
+            : providerType === "backblaze_b2"
+              ? b2Region
+              : undefined,
       });
       toast.success("Account added successfully");
       onOpenChange(false);
@@ -104,30 +118,44 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
           {/* Provider Selection */}
           <div className="space-y-2">
             <Label>Provider</Label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="flex flex-col gap-2">
               {PROVIDERS.map((provider) => (
                 <button
                   key={provider.value}
                   type="button"
                   onClick={() => setProviderType(provider.value)}
-                  className={`flex items-center gap-2 p-3 rounded-lg border text-left transition-colors ${
+                  className={`flex items-center gap-3 p-3 rounded-lg border text-left transition-all ${
                     providerType === provider.value
-                      ? "border-primary bg-primary/5"
-                      : "border-border hover:border-muted-foreground/50"
+                      ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+                      : "border-border hover:border-muted-foreground/50 hover:bg-muted/30"
                   }`}
                 >
-                  {provider.value === "cloudflare_r2" ? (
-                    <Cloud className="h-4 w-4 text-orange-500" />
-                  ) : (
-                    <Server className="h-4 w-4 text-yellow-500" />
-                  )}
-                  <span className="text-sm font-medium">{provider.label}</span>
+                  <div
+                    className={`flex items-center justify-center w-9 h-9 rounded-lg ${
+                      provider.value === "cloudflare_r2"
+                        ? "bg-orange-500/10"
+                        : provider.value === "aws_s3"
+                          ? "bg-amber-500/10"
+                          : "bg-red-500/10"
+                    }`}
+                  >
+                    {provider.value === "cloudflare_r2" ? (
+                      <Cloud className="h-5 w-5 text-orange-500" />
+                    ) : provider.value === "aws_s3" ? (
+                      <Server className="h-5 w-5 text-amber-500" />
+                    ) : (
+                      <HardDrive className="h-5 w-5 text-red-500" />
+                    )}
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-sm font-medium">{provider.label}</span>
+                    <span className="text-xs text-muted-foreground truncate">
+                      {provider.description}
+                    </span>
+                  </div>
                 </button>
               ))}
             </div>
-            {selectedProvider && (
-              <p className="text-xs text-muted-foreground">{selectedProvider.description}</p>
-            )}
           </div>
 
           {/* Account Name */}
@@ -135,7 +163,13 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
             <Label htmlFor="name">Account Name</Label>
             <Input
               id="name"
-              placeholder={providerType === "cloudflare_r2" ? "My R2 Account" : "My AWS Account"}
+              placeholder={
+                providerType === "cloudflare_r2"
+                  ? "My R2 Account"
+                  : providerType === "aws_s3"
+                    ? "My AWS Account"
+                    : "My B2 Account"
+              }
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
@@ -176,6 +210,31 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          )}
+
+          {providerType === "backblaze_b2" && (
+            <div className="space-y-2">
+              <Label htmlFor="b2Region">Region</Label>
+              <Select
+                value={b2Region}
+                onValueChange={(val) => val && setB2Region(val)}
+                items={B2_REGIONS}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {B2_REGIONS.map((r) => (
+                    <SelectItem key={r.value} value={r.value}>
+                      {r.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Find your region in your B2 bucket endpoint URL
+              </p>
             </div>
           )}
 

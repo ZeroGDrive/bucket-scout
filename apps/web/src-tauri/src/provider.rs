@@ -9,15 +9,18 @@ pub enum ProviderType {
     CloudflareR2,
     /// Amazon Web Services S3
     AwsS3,
+    /// Backblaze B2 - S3-compatible object storage
+    BackblazeB2,
 }
 
 impl ProviderType {
     /// Returns whether this provider requires path-style URLs
-    /// R2 requires path-style, AWS S3 uses virtual-hosted style by default
+    /// R2 and B2 require path-style, AWS S3 uses virtual-hosted style by default
     pub fn force_path_style(&self) -> bool {
         match self {
             ProviderType::CloudflareR2 => true,
             ProviderType::AwsS3 => false,
+            ProviderType::BackblazeB2 => true,
         }
     }
 
@@ -26,6 +29,7 @@ impl ProviderType {
         match self {
             ProviderType::CloudflareR2 => "auto",
             ProviderType::AwsS3 => "us-east-1",
+            ProviderType::BackblazeB2 => "us-west-004",
         }
     }
 
@@ -34,6 +38,7 @@ impl ProviderType {
         match self {
             ProviderType::CloudflareR2 => "Cloudflare R2",
             ProviderType::AwsS3 => "Amazon S3",
+            ProviderType::BackblazeB2 => "Backblaze B2",
         }
     }
 }
@@ -97,4 +102,11 @@ pub const AWS_REGIONS: &[(&str, &str)] = &[
     ("ca-central-1", "Canada (Central)"),
     ("me-south-1", "Middle East (Bahrain)"),
     ("af-south-1", "Africa (Cape Town)"),
+];
+
+/// Backblaze B2 regions
+pub const B2_REGIONS: &[(&str, &str)] = &[
+    ("us-west-004", "US West"),
+    ("us-west-002", "US West (Legacy)"),
+    ("eu-central-003", "EU Central"),
 ];
